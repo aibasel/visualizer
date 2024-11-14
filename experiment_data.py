@@ -1,12 +1,30 @@
 from io import BytesIO # for reading in bytestrings for file upload
 import pandas as pd
 import panel as pn
+from panel.viewable import Viewer
 import param
 
 from custom_logging import logging
 
 logger = logging.getLogger("visualizer.experiment_data")
 
+
+class NumericAttribute(Viewer):
+    min_wins = param.Boolean(default=False, doc="Whether a lower value is better or not")
+    aggregator = param.Selector(objects=['sum', 'mean', 'gmean'], default='sum', doc="The operation used when aggregating data")
+
+    def __init(self, **params):
+        super().__init__(**params)
+
+        self.default_min_wins = self.min_wins
+        self.default_aggregator = self.aggregator
+
+    def __panel__(self):
+        return pn.Row(
+            pn.pane.Str(self.param.name),
+            pn.widgets.Select.from_param(self.param.aggregator, name="", width=75),
+            pn.widgets.Switch.from_param(self.param.min_wins),
+        )
 
 class ExperimentData(param.Parameterized):
 
@@ -19,6 +37,8 @@ class ExperimentData(param.Parameterized):
 
     def __init__(self, **params):
         super().__init__(**params)
+
+        self.attr = NumericAttribute(name='test', aggregator="mean", min_wins=True)
 
         self.param_view = pn.WidgetBox("## Experiment Data Options",
             pn.Row(
@@ -47,7 +67,8 @@ class ExperimentData(param.Parameterized):
                 widgets={'properties_file': pn.widgets.FileInput},
                 margin=(0, 10),
                 visible=(self.param.properties_mode.rx() == "file"),
-            )
+            ),
+            self.attr
         )
 
 
