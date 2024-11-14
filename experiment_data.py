@@ -1,6 +1,10 @@
 import panel as pn
 import param
 
+from custom_logging import logging
+
+logger = logging.getLogger("visualizer.experiment_data")
+
 class ExperimentData(param.Parameterized):
     number = param.Integer(label="Number", doc="a number")
     word = param.String(label="Word", doc="a word")

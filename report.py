@@ -2,8 +2,11 @@ import panel as pn
 from panel.viewable import Viewer
 import param
 
-
+from custom_logging import logging
 from experiment_data import ExperimentData
+
+logger = logging.getLogger("visualizer.report")
+
 
 class Report(Viewer):
 

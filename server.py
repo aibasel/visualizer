@@ -5,8 +5,11 @@ from panel.viewable import Viewer
 import param
 import zlib #for compressing the json parameter dict
 
+from custom_logging import logging, custom_formatter
 from experiment_data import ExperimentData
 from scatter import ScatterReport
+
+logger = logging.getLogger("visualizer")
 
 
 class FullViewer(Viewer):
@@ -40,18 +43,37 @@ class FullViewer(Viewer):
                 list(report.param.values().keys())
             )
 
+        # set up terminal for logger output
+        terminal_options = {
+            "disableStdin": True,
+            "cursorBlink": False,
+            "cursorInactiveStyle": "none",
+            "cursorStyle": "bar"
+        }
+        terminal = pn.widgets.Terminal(height=150, options=terminal_options,
+                                       sizing_mode='stretch_width')
+        stream_handler = logging.StreamHandler(terminal)
+        stream_handler.terminator = "  \n"
+        stream_handler.setFormatter(custom_formatter)
+        stream_handler.setLevel(logging.INFO)
+        logger.addHandler(stream_handler)
+
         # set up the overall view
         self.report_param_views = pn.Column(*[x.param_view for x in self.reports])
         self.report_data_views = pn.Column(*self.reports)
-        self.view = pn.Row(
-            pn.Column(
-                pn.Param(self.param.selected_report, expand_button=False),
-                self.experiment_data.param_view,
-                *self.report_param_views
+        self.view = pn.Column(
+            pn.Row(
+                pn.Column(
+                    pn.Param(self.param.selected_report, expand_button=False),
+                    self.experiment_data.param_view,
+                    *self.report_param_views
+                ),
+                pn.Column(
+                    *self.report_data_views
+                ),
+                sizing_mode="stretch_both"
             ),
-            pn.Column(
-                *self.report_data_views
-            )
+            terminal
         )
 
 

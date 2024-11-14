@@ -2,7 +2,11 @@ import pandas as pd
 import panel as pn
 import param
 
+from custom_logging import logging
 from report import Report
+
+logger = logging.getLogger("visualizer.scatter")
+
 
 class ScatterReport(Report):
 
@@ -26,14 +30,14 @@ class ScatterReport(Report):
 
     @param.depends("param1", watch=True)
     def change_df1(self):
-        print("changing df based on param1")
+        logger.info("changing df based on param1")
         self.df['col1'][0] = self.param1
         self.param.trigger('df')
 
 
     @param.depends("experiment_data.number", watch=True)
     def change_df2(self):
-        print("changing df based on experiment_data.number")
+        logger.debug("changing df based on experiment_data.number")
         self.df['col2'][1] = self.experiment_data.number
         self.param.trigger('df')
 
