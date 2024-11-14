@@ -15,3 +15,13 @@ class ExperimentData(param.Parameterized):
             pn.Param(self.param.number),
             pn.Param(self.param.word)
         )
+
+    # returns a dict containing all information needed for recreating the current view
+    def get_param_config_dict(self):
+        ret = self.param.values()
+        ret.pop("name")
+        return ret
+
+    # sets parameters based on the param_config_dict
+    def set_params_from_param_config_dict(self, param_config_dict):
+        self.param.update(param_config_dict)

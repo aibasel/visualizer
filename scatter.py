@@ -44,3 +44,9 @@ class ScatterReport(Report):
             pn.pane.Str(self.param.param2),
             pn.widgets.Tabulator(self.param.df) #we need to pass the parameter object so it is reactive
         )
+
+    def get_param_config_dict(self):
+        return {
+            "param1" : self.param1,
+            "param2" : self.param2
+        }
