@@ -35,18 +35,20 @@ class ScatterReport(Report):
         self.param.trigger('df')
 
 
-    @param.depends("experiment_data.number", watch=True)
+    @param.depends("experiment_data.properties_url", watch=True)
     def change_df2(self):
-        logger.debug("changing df based on experiment_data.number")
-        self.df['col2'][1] = self.experiment_data.number
+        logger.debug("changing df based on experiment_data.properties_url")
+        self.df['col2'][1] = len(self.experiment_data.properties_url)
         self.param.trigger('df')
 
 
     def __panel__(self):
         return pn.Column(
-            pn.pane.Str(self.experiment_data.param.word),
+            pn.pane.Str(self.experiment_data.param.properties_url),
             pn.pane.Str(self.param.param2),
-            pn.widgets.Tabulator(self.param.df) #we need to pass the parameter object so it is reactive
+            pn.widgets.Tabulator(self.param.df), #we need to pass the parameter object so it is reactive
+            # pn.widgets.Tabulator(self.experiment_data.param.data)
+            self.experiment_data.param.data.rx() #if we don't pass the parameter object to a panel, we need to call .rx() to make it reactive
         )
 
     def get_param_config_dict(self):

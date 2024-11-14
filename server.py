@@ -16,7 +16,7 @@ class FullViewer(Viewer):
 
     selected_report = param.Selector(label="Report Type")
     experiment_data = param.Parameter(precedence=-1)
-    param_config = param.String(precedence=-1) # encodes all relevant parameter information in a string that is passed to the url
+    param_config = param.String(precedence=-1) #encodes all relevant parameter information in a string that is passed to the url
 
 
     def __init__(self, **params):
@@ -30,8 +30,8 @@ class FullViewer(Viewer):
         ]
         self.param.selected_report.objects = self.reports
 
-        # set up all watchers for triggering an update in param_config whenever
-        # a relevant parameter changed
+        # set up watchers for triggering a param_config update whenever a parameter changes
+        # TODO: it might be inefficient to watch *all* parameters, we could also let each class decide
         self.param.watch(self.set_param_config, ["selected_report"])
         self.experiment_data.param.watch(
             self.set_param_config,
@@ -100,6 +100,11 @@ class FullViewer(Viewer):
 
     # sets a url based on the current parameter values
     def set_param_config(self, *events):
+        # we only want to set an url if the properties file was passed by url
+        if self.experiment_data.properties_mode == "file":
+            self.param_config = ""
+            return
+
         params = {
             "repidx" : self.reports.index(self.selected_report),
             "expdata": self.experiment_data.get_param_config_dict(),
