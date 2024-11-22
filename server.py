@@ -30,19 +30,6 @@ class FullViewer(Viewer):
         ]
         self.param.selected_report.objects = self.reports
 
-        # set up watchers for triggering a param_config update whenever a parameter changes
-        # TODO: it might be inefficient to watch *all* parameters, we could also let each class decide
-        self.param.watch(self.set_param_config, ["selected_report"])
-        self.experiment_data.param.watch(
-            self.set_param_config,
-            list(self.experiment_data.param.values().keys())
-        )
-        for report in self.reports:
-            report.param.watch(
-                self.set_param_config,
-                list(report.param.values().keys())
-            )
-
         # set up terminal for logger output
         terminal_options = {
             "disableStdin": True,
@@ -66,10 +53,15 @@ class FullViewer(Viewer):
                 pn.Column(
                     pn.Param(self.param.selected_report, expand_button=False),
                     self.experiment_data.param_view,
-                    *self.report_param_views
+                    *self.report_param_views,
+                    width=500,
+                    sizing_mode="stretch_both",
+                    scroll=True
                 ),
                 pn.Column(
-                    *self.report_data_views
+                    *self.report_data_views,
+                    sizing_mode="stretch_both",
+                    scroll=True
                 ),
                 sizing_mode="stretch_both"
             ),
@@ -87,19 +79,37 @@ class FullViewer(Viewer):
 
     # will load the parameters from the url or set a default if url contains no information
     def load_params(self):
+        logger.debug("loading parameters from url")
         if not self.param_config:
             self.selected_report = self.reports[0]
             return
-
         params = json.loads(zlib.decompress(
             base64.urlsafe_b64decode(self.param_config.encode())))
+        logger.debug("loading selected report")
         self.selected_report = self.reports[params["repidx"]]
+        logger.debug("loading experiment data params")
         self.experiment_data.set_params_from_param_config_dict(params["expdata"])
+        logger.debug("loading selected report params")
         self.selected_report.set_params_from_param_config_dict(params["report"])
+
+
+    def setup_param_config_watchers(self):
+        # TODO: it might be inefficient to watch *all* parameters, we could also let each class decide
+        self.param.watch(self.set_param_config, ["selected_report"])
+        self.experiment_data.param.watch(
+            self.set_param_config,
+            list(self.experiment_data.param.values().keys())
+        )
+        for report in self.reports:
+            report.param.watch(
+                self.set_param_config,
+                list(report.param.values().keys())
+            )
 
 
     # sets a url based on the current parameter values
     def set_param_config(self, *events):
+        logger.debug("setting param config string")
         # we only want to set an url if the properties file was passed by url
         if self.experiment_data.properties_mode == "file":
             self.param_config = ""
@@ -117,4 +127,5 @@ class FullViewer(Viewer):
 overall_view = FullViewer()
 pn.state.location.sync(overall_view, { "param_config" : "c" })
 overall_view.load_params()
+overall_view.setup_param_config_watchers()
 overall_view.servable()

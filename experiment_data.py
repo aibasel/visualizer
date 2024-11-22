@@ -13,18 +13,42 @@ class NumericAttribute(Viewer):
     min_wins = param.Boolean(default=False, doc="Whether a lower value is better or not")
     aggregator = param.Selector(objects=['sum', 'mean', 'gmean'], default='sum', doc="The operation used when aggregating data")
 
-    def __init(self, **params):
+
+    def __init__(self, exp_data, **params):
         super().__init__(**params)
-
-        self.default_min_wins = self.min_wins
+        self.exp_data = exp_data
         self.default_aggregator = self.aggregator
+        self.default_min_wins = self.min_wins
 
-    def __panel__(self):
-        return pn.Row(
-            pn.pane.Str(self.param.name),
-            pn.widgets.Select.from_param(self.param.aggregator, name="", width=75),
-            pn.widgets.Switch.from_param(self.param.min_wins),
-        )
+
+    def name_view(self):
+        return pn.pane.HTML(self.param.name)
+    def aggregator_view(self):
+        return pn.widgets.Select.from_param(self.param.aggregator, name="", width=75)
+    def min_wins_view(self):
+        return pn.widgets.Switch.from_param(self.param.min_wins, width=50)
+
+
+    @param.depends("min_wins", watch=True)
+    def update_min_wins(self):
+        logger.debug(f"Updating min wins for NumericAttribute {self.name}")
+        if self.min_wins == self.default_min_wins:
+            self.exp_data.custom_min_wins.pop(self.name, None)
+        else:
+            self.exp_data.custom_min_wins[self.name] = self.min_wins
+        self.exp_data.param.trigger("custom_min_wins")
+
+
+    @param.depends("aggregator", watch=True)
+    def update_aggregator(self):
+        logger.debug(f"Updating aggregator for NumericAttribute {self.name}")
+        if self.aggregator == self.default_aggregator:
+            self.exp_data.custom_aggregators.pop(self.name, None)
+        else:
+            self.exp_data.custom_aggregators[self.name] = self.aggregator
+        self.exp_data.param.trigger("custom_aggregators")
+
+
 
 class ExperimentData(param.Parameterized):
 
@@ -33,12 +57,22 @@ class ExperimentData(param.Parameterized):
     properties_mode = param.Selector(objects=["file", "url"], default="url",
         doc="whether the properties file should be uploaded as file or specified as url")
 
+    custom_min_wins = param.Dict()
+    custom_aggregators = param.Dict()
+
     data = param.DataFrame(precedence=-1)
 
     def __init__(self, **params):
         super().__init__(**params)
 
-        self.attr = NumericAttribute(name='test', aggregator="mean", min_wins=True)
+        self.attributes = []
+        self.numeric_attributes = {}
+        self.algorithms = []
+        self.domains = []
+        self.problems = {}
+        self.num_problems = 0
+
+        self.numeric_attr_views = pn.GridBox(name="Attributes", ncols=3)
 
         self.param_view = pn.WidgetBox("## Experiment Data Options",
             pn.Row(
@@ -68,7 +102,7 @@ class ExperimentData(param.Parameterized):
                 margin=(0, 10),
                 visible=(self.param.properties_mode.rx() == "file"),
             ),
-            self.attr
+            pn.Accordion(pn.rx(self.numeric_attr_views)),
         )
 
 
@@ -90,29 +124,72 @@ class ExperimentData(param.Parameterized):
         elif self.properties_file is not None:
             properties = BytesIO(self.properties_file)
 
-        if properties is None: #empty input
-            self.data = pd.DataFrame()
-        else:
-            prop_from = "file" if self.properties_mode == "file" else properties
+        prop_from = "file" if self.properties_mode == "file" else properties
+        if properties is not None:
             logger.info("reading in properties from " + prop_from)
-            try:
-                self.data = pd.read_json(properties, orient="index")
-                logger.info("done reading in properties")
-            except Exception as e:
-                self.data = pd.DataFrame()
-                logger.warning("Could not read properties")
+        try:
+            new_data = pd.read_json(properties, orient="index")
+            self.attributes = [x for x in new_data.columns if x not in ["algorithm", "domain", "problem"]]
+            self.numeric_attributes = {x: NumericAttribute(name=x, exp_data=self)
+                for x in self.attributes if pd.api.types.is_numeric_dtype(new_data.dtypes[x])}
+            self.numeric_attr_views.objects = [
+                v for x in self.numeric_attributes.values() for v in [x.name_view, x.aggregator_view, x.min_wins_view]]
+            self.algorithms = list(new_data.algorithm.unique())
+            self.domains = list(new_data.domain.unique())
 
-        print(self.data)
+            # pivot such that the columns are a combination of algorithm-attribute, and then stack such that the attribute becomes part of the index
+            new_data = new_data.pivot(index=["domain","problem"], columns="algorithm", values=self.attributes).stack(0, dropna = False)
+            # pivot does not set a name for the newly created index column
+            new_data.index.names = ["domain","problem","attribute"]
+            # reorder and sort such that attribute is the first index column
+            new_data = new_data.reorder_levels(["attribute","domain","problem"])
+            new_data = new_data.sort_index()
+            # build a dicitonary that stores for every domain a list of problem names
+            self.problems = dict()
+            self.num_problems = 0
+            for domain in self.domains:
+                self.problems[domain] = [x for x in new_data.loc[(self.attributes[0],domain)].index.get_level_values('problem')]
+                self.num_problems  += len(self.problems[domain])
+
+            self.param.update({
+                "data": new_data,
+                "custom_min_wins": {},
+                "custom_aggregators": {}
+            })
+            logger.info("done reading in properties")
+
+        except Exception as e:
+            self.attributes = []
+            self.numeric_attributes = {}
+            self.algorithms = []
+            self.domains = []
+            self.problems = {}
+            self.num_problems = 0
+
+            self.param.update({
+                "data": pd.DataFrame(),
+                "custom_min_wins": {},
+                "custom_aggregators": {}
+            })
+            if properties is not None:
+                logger.warning("Could not read properties")
 
 
     # returns a dict containing all information needed for recreating the current view
     def get_param_config_dict(self):
         relevant_params = [
             "properties_url",
+            "custom_min_wins",
+            "custom_aggregators"
         ]
         return { key: self.param.values()[key] for key in relevant_params }
 
 
     # sets parameters based on the param_config_dict
     def set_params_from_param_config_dict(self, param_config_dict):
+        self.properties_url = param_config_dict.pop("properties_url")
         self.param.update(param_config_dict)
+        for attribute, value in self.custom_min_wins.items():
+            self.numeric_attributes[attribute].min_wins = value
+        for attribute, value in self.custom_aggregators.items():
+            self.numeric_attributes[attribute].aggregator = value
