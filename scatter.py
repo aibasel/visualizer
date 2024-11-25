@@ -22,10 +22,10 @@ class ScatterReport(Report):
         self.param1 = 5
         self.param2 = self.name
 
-        self.param_view.append(pn.WidgetBox("## Scatter Report Options",
+        self.param_view.extend([
             pn.Param(self.param.param1),
             pn.Param(self.param.param2),
-        ))
+        ])
 
 
     @param.depends("param1", watch=True)

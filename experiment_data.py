@@ -26,7 +26,7 @@ class NumericAttribute(Viewer):
     def aggregator_view(self):
         return pn.widgets.Select.from_param(self.param.aggregator, name="", width=75)
     def min_wins_view(self):
-        return pn.widgets.Switch.from_param(self.param.min_wins, width=50)
+        return pn.widgets.Switch.from_param(self.param.min_wins, width=35)
 
 
     @param.depends("min_wins", watch=True)
@@ -74,7 +74,7 @@ class ExperimentData(param.Parameterized):
 
         self.numeric_attr_views = pn.GridBox(name="Attributes", ncols=3)
 
-        self.param_view = pn.WidgetBox("## Experiment Data Options",
+        self.param_view = pn.Column(
             pn.Row(
                 pn.pane.HTML(
                     "<label>Properties</label>",
@@ -102,7 +102,7 @@ class ExperimentData(param.Parameterized):
                 margin=(0, 10),
                 visible=(self.param.properties_mode.rx() == "file"),
             ),
-            pn.Accordion(pn.rx(self.numeric_attr_views)),
+            pn.Accordion(pn.rx(self.numeric_attr_views), margin=(0,0,15,15)),
         )
 
 
