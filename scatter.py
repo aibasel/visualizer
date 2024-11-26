@@ -23,8 +23,8 @@ class ScatterReport(Report):
         self.param2 = self.name
 
         self.param_view.extend([
-            pn.Param(self.param.param1),
-            pn.Param(self.param.param2),
+            pn.Param(self.param.param1, sizing_mode="stretch_width"),
+            pn.Param(self.param.param2, sizing_mode="stretch_width"),
         ])
 
 

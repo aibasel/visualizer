@@ -72,7 +72,7 @@ class ExperimentData(param.Parameterized):
         self.problems = {}
         self.num_problems = 0
 
-        self.numeric_attr_views = pn.GridBox(name="Attributes", ncols=3)
+        self.numeric_attr_views = pn.GridBox(name="Attributes", ncols=3, sizing_mode="stretch_width")
 
         self.param_view = pn.Column(
             pn.Row(
@@ -95,14 +95,17 @@ class ExperimentData(param.Parameterized):
                 margin=(0, 0, -8, 10),
             ),
             pn.Param(self.param.properties_url, margin=(0, 10),
-                visible = (self.param.properties_mode.rx() == "url")
+                visible = (self.param.properties_mode.rx() == "url"),
+                sizing_mode="stretch_width"
             ),
             pn.Param(self.param.properties_file,
                 widgets={'properties_file': pn.widgets.FileInput},
                 margin=(0, 10),
                 visible=(self.param.properties_mode.rx() == "file"),
+                sizing_mode="stretch_width"
             ),
-            pn.Accordion(pn.rx(self.numeric_attr_views), margin=(0,0,15,15)),
+            pn.Accordion(pn.rx(self.numeric_attr_views), margin=(0,0,15,15), sizing_mode="stretch_width"),
+            sizing_mode="stretch_width"
         )
 
 

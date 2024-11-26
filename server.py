@@ -9,150 +9,9 @@ from custom_logging import logging, custom_formatter
 from experiment_data import ExperimentData
 from scatter import ScatterReport
 
+from custom_golden_template import GoldenTemplate
+
 logger = logging.getLogger("visualizer")
-
-
-custom_template_def = """
-{% extends golden %}
-
-{% block contents %}
-<header class="app-bar" id="header">
-  <div style="display: contents;">
-    <div class="app-header">
-      {% if app_logo %}<a href="{{ site_url }}"><img src="{{ app_logo }}" class="app-logo"></a>{% endif %}
-      {% if site_title %}<a class="title" href="{{ site_url }}" >{{ site_title }}</a>{% endif %}
-      {% if site_title and app_title%}<span class="title">-</span>{% endif %}
-      {% if app_title %}<a class="title" href="">{{ app_title }}</a>{% endif %}
-    </div>
-    <section class="header-contents">
-      {% for doc in docs %}
-      {% for root in doc.roots %}
-      {% if "header" in root.tags %}
-      {{ embed(root) }}
-      {% endif %}
-      {% endfor %}
-      {% endfor %}
-    </section>
-    {% if busy %}
-    <div class="pn-busy-container">
-      {{ embed(roots.busy_indicator) | indent(6) }}
-    </div>
-    {% endif %}
-  </div>
-</header>
-
-<div class="main-area header-adjust" id="main">
-  <main class="main-content" id="main-content"></main>
-  <div id="pn-Modal" class="pn-modal header-adjust">
-    <div class="pn-modal-content">
-      <span class="pn-modalclose" id="pn-closeModal">&times;</span>
-      {% for doc in docs %}
-      {% for root in doc.roots %}
-      {% if "modal" in root.tags %}
-      {{ embed(root) | indent(6) }}
-      {% endif %}
-      {% endfor %}
-      {% endfor %}
-    </div>
-  </div>
-</div>
-
-<script type="text/javascript">
-  var config = {
-    content: [
-      {
-        type: 'row',
-        content: [
-	  {% if nav %}
-          {
-            type: 'component',
-            componentName: 'view',
-            componentState: {
-              title: "Sidebar",
-              model: '<div class="sidebar-contents">{% for doc in docs %}{% for root in doc.roots %}{% if "nav" in root.tags %} {{ embed(root) }} {% endif %}{% endfor %}{% endfor %}</div>'
-            },
-            width: {{ sidebar_width }},
-            isClosable: false
-          },
-	  {% endif %}
-          {
-            type: 'stack',
-            width: {% if nav %}100-{{ sidebar_width }}{% else %}100{% endif %},
-            content: [
-              {% for doc in docs %}
-              {% for root in doc.roots %}
-              {% if "main" in root.tags %}
-              {
-                type: 'component',
-                componentName: 'view',
-                componentState: {
-                  model: '{{ embed(root) }}',
-                  title: "{{ root_labels[root.name] }}"
-                },
-                isClosable: false
-              },
-              {% endif %}
-              {% endfor %}
-              {% endfor %}
-            ]
-          }
-        ]
-      }
-    ],
-    settings: {
-      showPopoutIcon: false
-    }
-  };
-
-  var myLayout = new GoldenLayout(config, $('#main-content'));
-  var resizing = false;
-  var resize_dispatcher = () => {
-    resizing = true;
-    window.dispatchEvent(new Event("resize"))
-    resizing = false;
-  }
-
-  myLayout.registerComponent('view', function( container, componentState ) {
-    const {width, css_classes} = componentState
-    if (width) {
-      container.on('open', () => container.setSize(width, container.height))
-    }
-    if (css_classes) {
-      css_classes.map((item) => container.getElement().addClass(item))
-    }
-    container.setTitle(componentState.title)
-    container.getElement().html(componentState.model);
-    container.on("resize", resize_dispatcher)
-  })
-
-
-  myLayout.init()
-  window.addEventListener('resize', (event) => {
-    if (!resizing) {
-      myLayout.updateSize($('#main-content').width(), $('#main-content').height())
-    }
-  });
-
-  var modal = document.getElementById("pn-Modal");
-  var span = document.getElementById("pn-closeModal");
-
-  span.onclick = function() {
-    modal.style.display = "none";
-  }
-
-  window.onclick = function(event) {
-    if (event.target == modal) {
-      modal.style.display = "none";
-    }
-  }
-</script>
-
-{% block state_roots %}
-{{ super() }}
-{% endblock %}
-
-{% endblock %}
-"""
 
 
 class FullViewer(Viewer):
@@ -161,6 +20,7 @@ class FullViewer(Viewer):
     experiment_data = param.Parameter(precedence=-1)
     param_config = param.String(precedence=-1) #encodes all relevant parameter information in a string that is passed to the url
 
+    log_messages = param.List(precedence=-1)
 
     def __init__(self, **params):
         super().__init__(**params)
@@ -180,37 +40,52 @@ class FullViewer(Viewer):
             "cursorInactiveStyle": "none",
             "cursorStyle": "bar"
         }
-        self.terminal = pn.widgets.Terminal(height=150, options=terminal_options,
-                                       sizing_mode='stretch_width')
+        self.terminal = pn.widgets.Terminal(
+            options=terminal_options, sizing_mode='stretch_both')
         stream_handler = logging.StreamHandler(self.terminal)
         stream_handler.terminator = "  \n"
         stream_handler.setFormatter(custom_formatter)
         stream_handler.setLevel(logging.INFO)
+        stream_handler.addFilter(self.log_event)
         logger.addHandler(stream_handler)
 
         self.report_param_views = pn.Column(*[x.param_view for x in self.reports])
         self.report_data_views = pn.Column(*self.reports)
+        self.log_view = pn.Column(pn.Column(scroll=True),scroll=True)
 
-
-    def __panel__(self):
-        template = pn.template.GoldenTemplate(
+        self.template = GoldenTemplate(
             title='Visualizer',
             sidebar=pn.Column(
                 pn.Param(self.param.selected_report, expand_button=False),
                 self.experiment_data.param_view,
                 *self.report_param_views,
-                sizing_mode="stretch_both",
+                sizing_mode="stretch_width",
                 scroll=True
-            )
+            ),
+            main=pn.Column(
+                *self.report_data_views,
+                sizing_mode="stretch_both",
+                scroll=True,
+            ),
+            # modal=pn.Card(pn.Feed(view_latest=True, sizing_mode="stretch_both", scroll=True), sizing_mode="stretch_both", scroll=False)
+            modal=pn.Column(pn.Column(pn.Column()),sizing_mode="stretch_both")
+            # modal=pn.Column(self.terminal, sizing_mode="stretch_height", scroll=True)
         )
-        template.main.append(pn.Column(
-            *self.report_data_views,
-            self.terminal,
-            sizing_mode="stretch_both",
-            scroll=True,
-        ))
-        print(template.config.__dir__())
-        return template
+
+
+    def log_event(self, record):
+        if record.levelno >= logging.INFO:
+            print("SDFSDFSDFDSFDSFSDFSF")
+            self.log_messages.append(custom_formatter.format(record))
+            print(self.log_messages)
+            # self.template.modal[0] = pn.Column(*[pn.pane.Str(x) for x in self.log_messages], view_latest=True, sizing_mode="stretch_both")
+            self.template.modal[0].scroll_position = 0
+            self.template.modal.scroll_position = 0
+            self.template.modal[0].objects = [pn.pane.Str(x) for x in self.log_messages]
+        return True
+
+    def __panel__(self):
+        return self.template
 
     @param.depends("selected_report", watch=True)
     def report_selected(self):

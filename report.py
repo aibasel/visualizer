@@ -17,7 +17,7 @@ class Report(Viewer):
         super().__init__(**params)
 
         self.experiment_data=experiment_data
-        self.param_view = pn.Column() #stores all report parameter widgets
+        self.param_view = pn.Column(sizing_mode="stretch_width") #stores all report parameter widgets
 
     # returns a dict containing all information needed for recreating the current view
     def get_param_config_dict(self):
