@@ -61,7 +61,7 @@ class GoldenTemplate(BasicTemplate):
         cdn: bool | Literal['auto'] = 'auto',
         extras: dict[str, dict[str, str]] | None = None
     ) -> ResourcesType:
-        resources = super().resolve_resources(cdn=False, extras=extras)
+        resources = super().resolve_resources(cdn=cdn, extras=extras)
         del_theme = 'dark' if self._design.theme._name =='default' else 'light'
         del resources['css'][f'golden-theme-{del_theme}']
         return resources

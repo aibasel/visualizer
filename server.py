@@ -1,5 +1,6 @@
 import base64 #for encoding the compressed json parameter dict as url
 import json #for dumping the parameter dict as json
+import logging
 import panel as pn
 from panel.viewable import Viewer
 import param
@@ -67,21 +68,15 @@ class FullViewer(Viewer):
                 sizing_mode="stretch_both",
                 scroll=True,
             ),
-            # modal=pn.Card(pn.Feed(view_latest=True, sizing_mode="stretch_both", scroll=True), sizing_mode="stretch_both", scroll=False)
-            modal=pn.Column(pn.Column(pn.Column()),sizing_mode="stretch_both")
-            # modal=pn.Column(self.terminal, sizing_mode="stretch_height", scroll=True)
+            modal=pn.Column(pn.Column(scroll=True, view_latest=True))
         )
 
 
     def log_event(self, record):
         if record.levelno >= logging.INFO:
-            print("SDFSDFSDFDSFDSFSDFSF")
-            self.log_messages.append(custom_formatter.format(record))
+            self.log_messages.insert(0,custom_formatter.format(record))
             print(self.log_messages)
-            # self.template.modal[0] = pn.Column(*[pn.pane.Str(x) for x in self.log_messages], view_latest=True, sizing_mode="stretch_both")
-            self.template.modal[0].scroll_position = 0
-            self.template.modal.scroll_position = 0
-            self.template.modal[0].objects = [pn.pane.Str(x) for x in self.log_messages]
+            self.template.modal[0].objects = [pn.Column(pn.pane.Str("\n".join(self.log_messages)), view_latest=True)]
         return True
 
     def __panel__(self):

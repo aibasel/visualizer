@@ -22,7 +22,7 @@ class NumericAttribute(Viewer):
 
 
     def name_view(self):
-        return pn.pane.HTML(self.param.name)
+        return pn.pane.HTML(self.param.name, styles={"overflow-wrap": "break-word"}, sizing_mode="stretch_width")
     def aggregator_view(self):
         return pn.widgets.Select.from_param(self.param.aggregator, name="", width=75)
     def min_wins_view(self):
@@ -168,6 +168,7 @@ class ExperimentData(param.Parameterized):
             self.domains = []
             self.problems = {}
             self.num_problems = 0
+            self.numeric_attr_views.objects = []
 
             self.param.update({
                 "data": pd.DataFrame(),
