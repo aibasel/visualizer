@@ -72,7 +72,12 @@ class ExperimentData(param.Parameterized):
         self.problems = {}
         self.num_problems = 0
 
-        self.numeric_attr_views = pn.GridBox(name="Attributes", ncols=3, sizing_mode="stretch_width")
+        self.numeric_attr_views = pn.GridBox(
+            pn.pane.HTML("<b>Attribute</b>"),
+            pn.pane.HTML("<b>Aggregator</b>"),
+            pn.pane.HTML("<b>Min wins</b>"),
+            name="Attributes", ncols=3)
+        self.algorithm_aliases_views = pn.GridBox(name="Algorithms", ncols=3)
 
         self.param_view = pn.Column(
             pn.Row(
@@ -104,7 +109,7 @@ class ExperimentData(param.Parameterized):
                 visible=(self.param.properties_mode.rx() == "file"),
                 sizing_mode="stretch_width"
             ),
-            pn.Accordion(pn.rx(self.numeric_attr_views), margin=(0,0,15,15), sizing_mode="stretch_width"),
+            pn.Accordion(pn.rx(self.numeric_attr_views), margin=(0,15,15,15)),
             sizing_mode="stretch_width"
         )
 
@@ -135,7 +140,7 @@ class ExperimentData(param.Parameterized):
             self.attributes = [x for x in new_data.columns if x not in ["algorithm", "domain", "problem"]]
             self.numeric_attributes = {x: NumericAttribute(name=x, exp_data=self)
                 for x in self.attributes if pd.api.types.is_numeric_dtype(new_data.dtypes[x])}
-            self.numeric_attr_views.objects = [
+            self.numeric_attr_views.objects = self.numeric_attr_views.objects[0:3] + [
                 v for x in self.numeric_attributes.values() for v in [x.name_view, x.aggregator_view, x.min_wins_view]]
             self.algorithms = list(new_data.algorithm.unique())
             self.domains = list(new_data.domain.unique())
@@ -157,7 +162,7 @@ class ExperimentData(param.Parameterized):
             self.param.update({
                 "data": new_data,
                 "custom_min_wins": {},
-                "custom_aggregators": {}
+                "custom_aggregators": {},
             })
             logger.info("done reading in properties")
 
@@ -168,7 +173,7 @@ class ExperimentData(param.Parameterized):
             self.domains = []
             self.problems = {}
             self.num_problems = 0
-            self.numeric_attr_views.objects = []
+            self.numeric_attr_views.objects = self.numeric_attr_views.objects[0:3]
 
             self.param.update({
                 "data": pd.DataFrame(),
