@@ -50,6 +50,39 @@ class NumericAttribute(Viewer):
 
 
 
+class Algorithm(Viewer):
+
+    alias = param.String(default="")
+
+
+    def __init__(self, exp_data, **params):
+        super().__init__(**params)
+        self.exp_data = exp_data
+
+
+    def name_view(self):
+        return pn.pane.HTML(self.param.name, styles={"overflow-wrap": "break-word"}, sizing_mode="stretch_width")
+    def alias_view(self):
+        return pn.widgets.TextInput.from_param(self.param.alias, name="")
+
+    def get_name(self):
+        if self.alias == "":
+            return self.name
+        else:
+            return self.alias
+
+
+    @param.depends("alias", watch=True)
+    def update_alias(self):
+        logger.debug(f"Updating alias for algorithm {self.name} to {self.alias}")
+        if self.alias == "":
+            self.exp_data.custom_algorithm_aliases.pop(self.name, None)
+        else:
+            self.exp_data.custom_algorithm_aliases[self.name] = self.alias
+        self.exp_data.param.trigger("custom_algorithm_aliases")
+
+
+
 class ExperimentData(param.Parameterized):
 
     properties_url = param.String()
@@ -57,17 +90,17 @@ class ExperimentData(param.Parameterized):
     properties_mode = param.Selector(objects=["file", "url"], default="url",
         doc="whether the properties file should be uploaded as file or specified as url")
 
-    custom_min_wins = param.Dict()
-    custom_aggregators = param.Dict()
-
     data = param.DataFrame(precedence=-1)
+    custom_min_wins = param.Dict(precedence=-1)
+    custom_aggregators = param.Dict(precedence=-1)
+    custom_algorithm_aliases = param.Dict(precedence=-1)
 
     def __init__(self, **params):
         super().__init__(**params)
 
         self.attributes = []
         self.numeric_attributes = {}
-        self.algorithms = []
+        self.algorithms = {}
         self.domains = []
         self.problems = {}
         self.num_problems = 0
@@ -77,7 +110,12 @@ class ExperimentData(param.Parameterized):
             pn.pane.HTML("<b>Aggregator</b>"),
             pn.pane.HTML("<b>Min wins</b>"),
             name="Attributes", ncols=3)
-        self.algorithm_aliases_views = pn.GridBox(name="Algorithms", ncols=3)
+
+        self.algorithm_views = pn.GridBox(
+            pn.pane.HTML("<b>Algorithm</b>"),
+            pn.pane.HTML("<b>Alias</b>"),
+            name="Algorithms", ncols=2)
+
 
         self.param_view = pn.Column(
             pn.Row(
@@ -109,7 +147,8 @@ class ExperimentData(param.Parameterized):
                 visible=(self.param.properties_mode.rx() == "file"),
                 sizing_mode="stretch_width"
             ),
-            pn.Accordion(pn.rx(self.numeric_attr_views), margin=(0,15,15,15)),
+            pn.Accordion(pn.rx(self.numeric_attr_views), margin=(0,15,0,15)),
+            pn.Accordion(pn.rx(self.algorithm_views), margin=(0,15,15,15)),
             sizing_mode="stretch_width"
         )
 
@@ -142,7 +181,10 @@ class ExperimentData(param.Parameterized):
                 for x in self.attributes if pd.api.types.is_numeric_dtype(new_data.dtypes[x])}
             self.numeric_attr_views.objects = self.numeric_attr_views.objects[0:3] + [
                 v for x in self.numeric_attributes.values() for v in [x.name_view, x.aggregator_view, x.min_wins_view]]
-            self.algorithms = list(new_data.algorithm.unique())
+            self.algorithms = {x: Algorithm(name=x, exp_data=self)
+                for x in new_data.algorithm.unique()}
+            self.algorithm_views.objects = self.algorithm_views.objects[0:2] + [
+                v for x in self.algorithms.values() for v in [x.name_view, x.alias_view()]]
             self.domains = list(new_data.domain.unique())
 
             # pivot such that the columns are a combination of algorithm-attribute, and then stack such that the attribute becomes part of the index
@@ -169,19 +211,22 @@ class ExperimentData(param.Parameterized):
         except Exception as e:
             self.attributes = []
             self.numeric_attributes = {}
-            self.algorithms = []
+            self.algorithms = {}
             self.domains = []
             self.problems = {}
             self.num_problems = 0
             self.numeric_attr_views.objects = self.numeric_attr_views.objects[0:3]
+            self.algorithm_views.objects = self.algorithm_views.objects[0:2]
 
             self.param.update({
                 "data": pd.DataFrame(),
                 "custom_min_wins": {},
-                "custom_aggregators": {}
+                "custom_aggregators": {},
+                "custom_algorithm_aliases": {}
             })
             if properties is not None:
                 logger.warning("Could not read properties")
+            raise e
 
 
     # returns a dict containing all information needed for recreating the current view
@@ -189,7 +234,8 @@ class ExperimentData(param.Parameterized):
         relevant_params = [
             "properties_url",
             "custom_min_wins",
-            "custom_aggregators"
+            "custom_aggregators",
+            "custom_algorithm_aliases"
         ]
         return { key: self.param.values()[key] for key in relevant_params }
 
@@ -202,3 +248,5 @@ class ExperimentData(param.Parameterized):
             self.numeric_attributes[attribute].min_wins = value
         for attribute, value in self.custom_aggregators.items():
             self.numeric_attributes[attribute].aggregator = value
+        for alg, alias in self.custom_algorithm_aliases.items():
+            self.algorithms[alg].alias = alias

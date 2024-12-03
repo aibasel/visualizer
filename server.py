@@ -58,7 +58,11 @@ class FullViewer(Viewer):
             title='Visualizer',
             sidebar=pn.Column(
                 pn.Param(self.param.selected_report, expand_button=False),
+                pn.pane.Markdown("## Properties parameters", margin=(25,0,0,0)),
+                pn.layout.Divider(margin=(-15,0,0,0)),
                 self.experiment_data.param_view,
+                pn.pane.Markdown("## Report parameters", margin=(25,0,0,0)),
+                pn.layout.Divider(margin=(-15,0,0,0)),
                 *self.report_param_views,
                 sizing_mode="stretch_width",
                 scroll=True
