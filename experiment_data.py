@@ -88,7 +88,7 @@ class Algorithm(Viewer):
         self.exp_data.param.trigger("custom_algorithm_aliases")
 
 
-
+# TODO: we need to somehow invalidate or update data when algorithm aliases change
 class ExperimentData(param.Parameterized):
 
     properties_url = param.String()
@@ -162,15 +162,24 @@ class ExperimentData(param.Parameterized):
         if name in self.algorithms.keys():
             return name
         else:
-            for alg, alias in self.algorithms.items():
-                if alias == name:
+            for alg, obj in self.algorithms.items():
+                print(f"comparing {name} and {obj.alias}")
+                if obj.alias == name:
                     return alg
             logger.error(f"Cannot find original algorithm name for alias {name}")
             return ""
 
     def get_data(self, attributes, algorithms):
-        algs = [self.get_original_algorithm_name(x) for x in algorithms]
-        return self.data.loc[attributes][algs].copy().rename(columns=self.custom_algorithm_aliases)
+        if algorithms is list:
+            algs = [self.get_original_algorithm_name(x) for x in algorithms]
+            algs = [x for x in algs if x != ""]
+            return self.data.loc[attributes][algs].copy().rename(columns=self.custom_algorithm_aliases)
+        else:
+            alg = self.get_original_algorithm_name(algorithms)
+            if alg == "":
+                return pd.DataFrame()
+            else:
+                return self.data.loc[attributes][alg].copy()
 
 
     @param.depends("properties_mode", watch=True)

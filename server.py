@@ -1,6 +1,5 @@
 import base64 #for encoding the compressed json parameter dict as url
 import json #for dumping the parameter dict as json
-import logging
 import panel as pn
 from panel.viewable import Viewer
 import param
@@ -50,8 +49,11 @@ class FullViewer(Viewer):
         stream_handler.addFilter(self.log_event)
         logger.addHandler(stream_handler)
 
-        self.report_param_views = pn.Column(*[x.param_view for x in self.reports])
-        self.report_data_views = pn.Column(*self.reports)
+        # We wrap param and report views into a Column since we need one
+        # constant object whose visibility we manipulate when switching
+        # report type. (Param and report views might return new objects.)
+        self.report_param_views = pn.Column(*[pn.Column(x.param_view) for x in self.reports])
+        self.report_data_views = pn.Column(*[pn.Column(report) for report in self.reports])
         self.log_view = pn.Column(pn.Column(scroll=True),scroll=True)
 
         self.template = GoldenTemplate(
@@ -87,6 +89,7 @@ class FullViewer(Viewer):
 
     @param.depends("selected_report", watch=True)
     def report_selected(self):
+        logger.debug("setting selected report")
         for i, report in enumerate(self.reports):
             logger.debug("changing report views visibility")
             self.report_param_views[i].visible = bool(self.selected_report == report)
