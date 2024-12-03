@@ -29,9 +29,6 @@ class GoldenTemplate(BasicTemplate):
     sidebar_width = param.Integer(default=20, constant=True, doc="""
         The width of the sidebar in percent.""")
 
-    log_height = param.Integer(default=5, constant=True, doc="""
-        The height of the log window in percent.""")
-
     _css = pathlib.Path(__file__).parent / 'golden.css'
 
     _template = pathlib.Path(__file__).parent / 'golden.html'

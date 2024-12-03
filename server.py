@@ -58,10 +58,10 @@ class FullViewer(Viewer):
             title='Visualizer',
             sidebar=pn.Column(
                 pn.Param(self.param.selected_report, expand_button=False),
-                pn.pane.Markdown("## Properties parameters", margin=(25,0,0,0)),
+                pn.pane.Markdown("## Properties", margin=(25,0,0,0)),
                 pn.layout.Divider(margin=(-15,0,0,0)),
                 self.experiment_data.param_view,
-                pn.pane.Markdown("## Report parameters", margin=(25,0,0,0)),
+                pn.pane.Markdown("## Report", margin=(25,0,0,0)),
                 pn.layout.Divider(margin=(-15,0,0,0)),
                 *self.report_param_views,
                 sizing_mode="stretch_width",
@@ -79,7 +79,6 @@ class FullViewer(Viewer):
     def log_event(self, record):
         if record.levelno >= logging.INFO:
             self.log_messages.insert(0,custom_formatter.format(record))
-            print(self.log_messages)
             self.template.modal[0].objects = [pn.Column(pn.pane.Str("\n".join(self.log_messages)), view_latest=True)]
         return True
 
@@ -138,6 +137,7 @@ class FullViewer(Viewer):
             "report" : self.selected_report.get_param_config_dict()
         }
         self.param_config = base64.urlsafe_b64encode(zlib.compress(json.dumps(params).encode())).decode()
+        logger.debug(f"set param config string with dictionary {params}")
 
 
 

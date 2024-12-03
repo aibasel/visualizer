@@ -78,7 +78,13 @@ class Algorithm(Viewer):
         if self.alias == "":
             self.exp_data.custom_algorithm_aliases.pop(self.name, None)
         else:
-            self.exp_data.custom_algorithm_aliases[self.name] = self.alias
+            in_use = False
+            for alg, alias in self.exp_data.custom_algorithm_aliases.items():
+                if alias == self.alias and alg != self.name:
+                    in_use = True
+                    logger.warning(f"Ignoring alias for {self.name}: alias {self.alias} already in use for algorithm {alg}")
+            if not in_use:
+                self.exp_data.custom_algorithm_aliases[self.name] = self.alias
         self.exp_data.param.trigger("custom_algorithm_aliases")
 
 
@@ -152,6 +158,20 @@ class ExperimentData(param.Parameterized):
             sizing_mode="stretch_width"
         )
 
+    def get_original_algorithm_name(self, name):
+        if name in self.algorithms.keys():
+            return name
+        else:
+            for alg, alias in self.algorithms.items():
+                if alias == name:
+                    return alg
+            logger.error(f"Cannot find original algorithm name for alias {name}")
+            return ""
+
+    def get_data(self, attributes, algorithms):
+        algs = [self.get_original_algorithm_name(x) for x in algorithms]
+        return self.data.loc[attributes][algs].copy().rename(columns=self.custom_algorithm_aliases)
+
 
     @param.depends("properties_mode", watch=True)
     def switch_properties_mode(self):
@@ -205,6 +225,7 @@ class ExperimentData(param.Parameterized):
                 "data": new_data,
                 "custom_min_wins": {},
                 "custom_aggregators": {},
+                "custom_algorithm_aliases": {},
             })
             logger.info("done reading in properties")
 
@@ -226,7 +247,6 @@ class ExperimentData(param.Parameterized):
             })
             if properties is not None:
                 logger.warning("Could not read properties")
-            raise e
 
 
     # returns a dict containing all information needed for recreating the current view
@@ -250,3 +270,4 @@ class ExperimentData(param.Parameterized):
             self.numeric_attributes[attribute].aggregator = value
         for alg, alias in self.custom_algorithm_aliases.items():
             self.algorithms[alg].alias = alias
+
