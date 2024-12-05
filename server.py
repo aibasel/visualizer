@@ -91,7 +91,6 @@ class FullViewer(Viewer):
     def report_selected(self):
         logger.debug("setting selected report")
         for i, report in enumerate(self.reports):
-            logger.debug("changing report views visibility")
             self.report_param_views[i].visible = bool(self.selected_report == report)
             self.report_data_views[i].visible = bool(self.selected_report == report)
 

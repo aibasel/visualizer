@@ -14,7 +14,7 @@ logger = logging.getLogger("visualizer.scatter")
 
 class ScatterReport(Report):
 
-    x_attribute = param.String(label="X Axis Attribute")
+    x_attribute = param.String(label="X Axis Attribute", default="")
     y_attribute = param.String(label="Y Axis Attribute")
     x_algorithm = param.String(label="X Algorithm Attribute")
     y_algorithm = param.String(label="Y Algorithm Attribute")
@@ -26,10 +26,19 @@ class ScatterReport(Report):
         super().__init__(experiment_data, **params)
 
         self.param_view.extend([
-            pn.Param(self.param.x_attribute),
+            pn.widgets.AutocompleteInput.from_param(
+                self.param.x_attribute,
+                options=self.experiment_data.param.numeric_attributes_names,
+                case_sensitive=False,
+                search_strategy='includes',
+                restrict=False,
+                margin=(0,0,0,20)
+            ),
+            # pn.Param(self.param.x_attribute),
             pn.Param(self.param.y_attribute),
             pn.Param(self.param.x_algorithm),
-            pn.Param(self.param.y_algorithm)
+            pn.Param(self.param.y_algorithm),
+            pn.pane.Str("Blabla\n" + "\n".join(pn.rx(self.experiment_data.numeric_attributes_names)))
         ])
 
         self.plot = figure(active_scroll = "wheel_zoom")
