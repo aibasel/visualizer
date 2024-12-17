@@ -13,7 +13,6 @@ class NumericAttribute(Viewer):
     min_wins = param.Boolean(default=False, doc="Whether a lower value is better or not")
     aggregator = param.Selector(objects=['sum', 'mean', 'gmean'], default='sum', doc="The operation used when aggregating data")
 
-
     def __init__(self, exp_data, **params):
         super().__init__(**params)
         self.exp_data = exp_data
@@ -51,9 +50,7 @@ class NumericAttribute(Viewer):
 
 
 class Algorithm(Viewer):
-
     alias = param.String(default="")
-
 
     def __init__(self, exp_data, **params):
         super().__init__(**params)
@@ -85,35 +82,35 @@ class Algorithm(Viewer):
                     logger.warning(f"Ignoring alias for {self.name}: alias {self.alias} already in use for algorithm {alg}")
             if not in_use:
                 self.exp_data.custom_algorithm_aliases[self.name] = self.alias
+        self.exp_data.algorithms = {x.get_name() : x for x in self.exp_data.algorithms.values()}
         self.exp_data.param.trigger("custom_algorithm_aliases")
 
 
 # TODO: we need to somehow invalidate or update data when algorithm aliases change
 class ExperimentData(param.Parameterized):
 
+    # widget parameters
     properties_url = param.String()
     properties_file = param.FileSelector()
     properties_mode = param.Selector(objects=["file", "url"], default="url",
         doc="whether the properties file should be uploaded as file or specified as url")
 
+    # internal parameters
     data = param.DataFrame(precedence=-1)
+    attributes = param.List(default=[], precedence=-1)
+    numeric_attributes = param.Dict(default={}, precedence=-1) # values are NumericAttribute objects
+    algorithms = param.Dict(default = {}, precedence=-1)
+    domains = param.List(default=[], precedence=-1)
+    num_problems = param.Integer(default=0)
+    num_problems_by_domain = param.Dict(default={}, precedence=-1)
+
+    # config string parameters
     custom_min_wins = param.Dict(precedence=-1)
     custom_aggregators = param.Dict(precedence=-1)
     custom_algorithm_aliases = param.Dict(precedence=-1)
 
-    numeric_attributes = param.Dict(precedence=-1)
-    numeric_attributes_names = param.List(precedence=-1)
-
     def __init__(self, **params):
         super().__init__(**params)
-
-        self.attributes = []
-        self.numeric_attributes = {}
-        self.numeric_attributes_names = []
-        self.algorithms = {}
-        self.domains = []
-        self.problems = {}
-        self.num_problems = 0
 
         self.numeric_attr_views = pn.GridBox(
             pn.pane.HTML("<b>Attribute</b>"),
@@ -125,7 +122,6 @@ class ExperimentData(param.Parameterized):
             pn.pane.HTML("<b>Algorithm</b>"),
             pn.pane.HTML("<b>Alias</b>"),
             name="Algorithms", ncols=2)
-
 
         self.param_view = pn.Column(
             pn.Row(
@@ -162,100 +158,99 @@ class ExperimentData(param.Parameterized):
             sizing_mode="stretch_width"
         )
 
-    def get_original_algorithm_name(self, name):
-        if name in self.algorithms.keys():
-            return name
-        else:
-            for alg, obj in self.algorithms.items():
-                print(f"comparing {name} and {obj.alias}")
-                if obj.alias == name:
-                    return alg
-            logger.error(f"Cannot find original algorithm name for alias {name}")
-            return ""
-
+    # TODO: check if we should copy the data
     def get_data(self, attributes, algorithms):
-        if algorithms is list:
-            algs = [self.get_original_algorithm_name(x) for x in algorithms]
-            algs = [x for x in algs if x != ""]
-            return self.data.loc[attributes][algs].copy().rename(columns=self.custom_algorithm_aliases)
-        else:
-            alg = self.get_original_algorithm_name(algorithms)
-            if alg == "":
-                return pd.DataFrame()
-            else:
-                return self.data.loc[attributes][alg].copy()
+        logger.debug("start get_data")
+        attr_names = []
+        if type(attributes) is NumericAttribute:
+            attr_names = attributes.name
+        elif attributes is list:
+            attr_names = [x.name for x in attributes if type(x) is NumericAttribute]
+        alg_names = []
+        if type(algorithms) is Algorithm:
+            alg_names = algorithms.name
+        elif algorithms is list:
+            alg_names = [x.name for x in algorithms if type(x) is Algorithm]
+        logger.debug("end get data")
+        return self.data.loc[attr_names][alg_names].rename(self.custom_algorithm_aliases)
 
 
     @param.depends("properties_mode", watch=True)
     def switch_properties_mode(self):
-        logger.debug("start method switch properties mode")
+        logger.debug("start switch properties mode")
         if self.properties_mode == "url":
             self.properties_file = None
         else:
             self.properties_url = ""
+        logger.debug("end switch properties mode")
 
 
     @param.depends("properties_url", "properties_file", watch=True)
     def set_data(self):
-        logger.debug("start method set data")
+        logger.debug("start set data")
         properties = None
         if self.properties_mode == "url" and self.properties_url != "":
             properties = self.properties_url
         elif self.properties_file is not None:
             properties = BytesIO(self.properties_file)
-
-        prop_from = "file" if self.properties_mode == "file" else properties
         if properties is not None:
-            logger.info("reading in properties from " + prop_from)
+            logger.info("start reading in properties from " + ("file" if self.properties_mode == "file" else "url " + properties))
+
         try:
-            new_data = pd.read_json(properties, orient="index")
-            self.attributes = [x for x in new_data.columns if x not in ["algorithm", "domain", "problem"]]
-            self.numeric_attributes = {x: NumericAttribute(name=x, exp_data=self)
-                for x in self.attributes if pd.api.types.is_numeric_dtype(new_data.dtypes[x])}
-            self.numeric_attributes_names = list(self.numeric_attributes.keys())
-            self.numeric_attr_views.objects = self.numeric_attr_views.objects[0:3] + [
-                v for x in self.numeric_attributes.values() for v in [x.name_view, x.aggregator_view, x.min_wins_view]]
-            self.algorithms = {x: Algorithm(name=x, exp_data=self)
-                for x in new_data.algorithm.unique()}
-            self.algorithm_views.objects = self.algorithm_views.objects[0:2] + [
-                v for x in self.algorithms.values() for v in [x.name_view, x.alias_view()]]
-            self.domains = list(new_data.domain.unique())
+            data = pd.read_json(properties, orient="index")
+            attributes = [x for x in data.columns if x not in ["algorithm", "domain", "problem"]]
+            numeric_attributes = {x: NumericAttribute(name=x, exp_data=self)
+                for x in attributes if pd.api.types.is_numeric_dtype(data.dtypes[x])}
+            algorithms = {x: Algorithm(name=x, exp_data=self)
+                for x in data.algorithm.unique()}
+            domains = list(data.domain.unique())
+            num_problems = 0 #actual value is set after pivoting data
+            num_problems_by_domain = dict() #actual value is set after pivoting data
 
             # pivot such that the columns are a combination of algorithm-attribute, and then stack such that the attribute becomes part of the index
-            new_data = new_data.pivot(index=["domain","problem"], columns="algorithm", values=self.attributes).stack(0, dropna = False)
-            # pivot does not set a name for the newly created index column
-            new_data.index.names = ["domain","problem","attribute"]
+            data =data.pivot(index=["domain","problem"], columns="algorithm", values=attributes).stack(0, future_stack=True)
+            # pivot does not set a name for the newly created index columnc
+            data.index.names = ["domain","problem","attribute"]
             # reorder and sort such that attribute is the first index column
-            new_data = new_data.reorder_levels(["attribute","domain","problem"])
-            new_data = new_data.sort_index()
-            # build a dicitonary that stores for every domain a list of problem names
-            self.problems = dict()
-            self.num_problems = 0
+            data = data.reorder_levels(["attribute","domain","problem"]).sort_index()
+
             for domain in self.domains:
-                self.problems[domain] = [x for x in new_data.loc[(self.attributes[0],domain)].index.get_level_values('problem')]
-                self.num_problems  += len(self.problems[domain])
+                num_problems_by_domain[domain] = [x for x in data.loc[(self.attributes[0],domain)].index.get_level_values('problem')]
+                num_problems  += len(num_problems_by_domain[domain])
 
             self.param.update({
-                "data": new_data,
+                "data": data,
+                "attributes" : attributes,
+                "numeric_attributes" : numeric_attributes,
+                "algorithms" : algorithms,
+                "domains" : domains,
+                "num_problems" : num_problems,
+                "num_problems_by_domain" : num_problems_by_domain,
                 "custom_min_wins": {},
                 "custom_aggregators": {},
                 "custom_algorithm_aliases": {},
             })
+
+
+            self.numeric_attr_views.objects = self.numeric_attr_views.objects[0:3] + [
+                v for x in self.numeric_attributes.values() for v in [x.name_view, x.aggregator_view, x.min_wins_view]]
+            self.algorithm_views.objects = self.algorithm_views.objects[0:2] + [
+                v for x in self.algorithms.values() for v in [x.name_view, x.alias_view]]
+            
             logger.info("done reading in properties")
 
         except Exception as e:
-            self.attributes = []
-            self.numeric_attributes = {}
-            self.numeric_attributes_names = []
-            self.algorithms = {}
-            self.domains = []
-            self.problems = {}
-            self.num_problems = 0
             self.numeric_attr_views.objects = self.numeric_attr_views.objects[0:3]
             self.algorithm_views.objects = self.algorithm_views.objects[0:2]
 
             self.param.update({
                 "data": pd.DataFrame(),
+                "attributes" : [],
+                "numeric_attributes" : {},
+                "algorithms" : {},
+                "domains" : [],
+                "num_problems" : 0,
+                "num_problems_by_domain" : {},
                 "custom_min_wins": {},
                 "custom_aggregators": {},
                 "custom_algorithm_aliases": {}

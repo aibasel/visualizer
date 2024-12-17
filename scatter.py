@@ -14,10 +14,10 @@ logger = logging.getLogger("visualizer.scatter")
 
 class ScatterReport(Report):
 
-    x_attribute = param.String(label="X Axis Attribute", default="")
-    y_attribute = param.String(label="Y Axis Attribute")
-    x_algorithm = param.String(label="X Algorithm Attribute")
-    y_algorithm = param.String(label="Y Algorithm Attribute")
+    x_attribute = param.Parameter(label="X Axis Attribute", default=None)
+    y_attribute = param.Parameter(label="Y Axis Attribute", default=None)
+    x_algorithm = param.Parameter(label="X Algorithm Attribute", default=None)
+    y_algorithm = param.Parameter(label="Y Algorithm Attribute", default=None)
 
     df = param.Parameter(precedence=-1)
 
@@ -28,27 +28,47 @@ class ScatterReport(Report):
         self.param_view.extend([
             pn.widgets.AutocompleteInput.from_param(
                 self.param.x_attribute,
-                options=self.experiment_data.param.numeric_attributes_names,
+                options=self.experiment_data.param.numeric_attributes,
                 case_sensitive=False,
                 search_strategy='includes',
                 restrict=False,
                 margin=(0,0,0,20)
             ),
-            # pn.Param(self.param.x_attribute),
-            pn.Param(self.param.y_attribute),
-            pn.Param(self.param.x_algorithm),
-            pn.Param(self.param.y_algorithm),
-            pn.pane.Str("Blabla\n" + "\n".join(pn.rx(self.experiment_data.numeric_attributes_names)))
+            pn.widgets.AutocompleteInput.from_param(
+                self.param.y_attribute,
+                options=self.experiment_data.param.numeric_attributes,
+                case_sensitive=False,
+                search_strategy='includes',
+                restrict=False,
+                margin=(0, 0, 0, 20)
+            ),
+            pn.widgets.AutocompleteInput.from_param(
+                self.param.x_algorithm,
+                options=self.experiment_data.param.algorithms,
+                case_sensitive=False,
+                search_strategy='includes',
+                restrict=False,
+                margin=(0, 0, 0, 20)
+            ),
+            pn.widgets.AutocompleteInput.from_param(
+                self.param.y_algorithm,
+                options=self.experiment_data.param.algorithms,
+                case_sensitive=False,
+                search_strategy='includes',
+                restrict=False,
+                margin=(0, 0, 0, 20)
+            ),
         ])
 
-        self.plot = figure(active_scroll = "wheel_zoom")
+        self.plot = figure(active_scroll = "wheel_zoom", sizing_mode="stretch_both")
 
 
     @param.depends("x_attribute", "y_attribute", "x_algorithm", "y_algorithm", watch=True)
     def update_data(self):
-        if (self.x_attribute not in self.experiment_data.numeric_attributes.keys() or
-                self.y_attribute not in self.experiment_data.numeric_attributes.keys()):
-            self.df = pd.DataFrame()
+        logger.debug("start updating data")
+        if self.x_attribute == "" or self.y_attribute == "":
+            self.df = None
+            logger.debug("end updating data (empty)")
             return
 
         frames = []
@@ -62,36 +82,40 @@ class ScatterReport(Report):
             ycol = self.experiment_data.get_data(self.y_attribute, yalg)
             if len(xcol) != len(ycol):
                 continue
+            xalg_name = xalg.get_name()
+            yalg_name = yalg.get_name()
             yrel = ycol.div(xcol.replace(0, np.nan))
-            name = xalg if xalg == yalg else f"{xalg} vs {yalg}"
-            algs = [xalg] if xalg == yalg else [xalg, yalg]
+            name = xalg_name if xalg == yalg else f"{xalg_name} vs {yalg_name}"
+            algs = [xalg_name] if xalg == yalg else [xalg_name, yalg_name]
             new_frame = pd.DataFrame({'x':xcol, 'y':ycol, 'yrel': yrel, 'name':name, 'algs': [algs]*len(xcol)}).reset_index().set_index(index_order)
             frames.append(new_frame)
             i=i+1
 
         if len(frames) == 0:
-            self.df = pd.DataFrame()
+            self.df = None
         else:
             overall_frame = pd.concat(frames).sort_index(level=0)
             overall_frame['yrel'] = overall_frame.y.div(overall_frame.x.replace(0,  np.nan))
             self.df = overall_frame
-
+        logger.debug("end updating data")
 
 
     @param.depends("df")
     def __panel__(self):
-        plot = figure(active_scroll="wheel_zoom", sizing_mode="stretch_both")
+        logger.debug("start __panel__")
+        self.plot = figure(active_scroll = "wheel_zoom", sizing_mode="stretch_both")
         if self.df is None:
-            return plot
+            logger.debug("end __panel__ (empty)")
+            return self.plot
 
         indices = self.df.index.get_level_values(0).unique()
         legend_items = []
         for i, index in enumerate(indices):
-            p = plot.scatter(x="x", y="y", source=self.df.loc[[index]].reset_index(),
+            p = self.plot.scatter(x="x", y="y", source=self.df.loc[[index]].reset_index(),
                 line_color="black", marker="x",
                 fill_color="black", fill_alpha=0.5,
                 size=10, muted_fill_alpha = 0.1)
-            legend_items.append(LegendItem(label=index, renderers = [plot.renderers[i]]))
+            legend_items.append(LegendItem(label=index, renderers = [self.plot.renderers[i]]))
 
         # compute appropriate number of columns and height of legend
         indices_length = [len(i) for i in indices]
@@ -110,11 +134,11 @@ class ScatterReport(Report):
         # legend
         legend = Legend(items = legend_items, location="center")
         legend.click_policy="mute"
-        plot.add_layout(legend, "below")
-        plot.legend.ncols = ncols
+        self.plot.add_layout(legend, "below")
+        self.plot.legend.ncols = ncols
 
         # hover info
-        plot.add_tools(HoverTool(tooltips=[
+        self.plot.add_tools(HoverTool(tooltips=[
             ('Domain', '@domain'),
             ('Problem', '@problem'),
             ('Name', '@name'),
@@ -122,8 +146,9 @@ class ScatterReport(Report):
             ('y', '@y'),
             ('yrel', '@yrel'),
             ]))
-        plot.add_tools(TapTool())
-        return plot
+        self.plot.add_tools(TapTool())
+        logger.debug("end __panel__")
+        return self.plot
 
 
 

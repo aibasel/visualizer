@@ -74,14 +74,14 @@ class FullViewer(Viewer):
                 sizing_mode="stretch_both",
                 scroll=True,
             ),
-            modal=pn.Column(pn.Column(scroll=True, view_latest=True))
+            modal=pn.Column(pn.Column())
         )
 
 
     def log_event(self, record):
         if record.levelno >= logging.INFO:
             self.log_messages.insert(0,custom_formatter.format(record))
-            self.template.modal[0].objects = [pn.Column(pn.pane.Str("\n".join(self.log_messages)), view_latest=True)]
+            self.template.modal[0].objects = [pn.Column(pn.pane.Str("\n".join(self.log_messages)))]
         return True
 
     def __panel__(self):
@@ -127,19 +127,22 @@ class FullViewer(Viewer):
 
     # sets a url based on the current parameter values
     def set_param_config(self, *events):
-        logger.debug("setting param config string")
-        # we only want to set an url if the properties file was passed by url
-        if self.experiment_data.properties_mode == "file":
-            self.param_config = ""
-            return
-
-        params = {
-            "repidx" : self.reports.index(self.selected_report),
-            "expdata": self.experiment_data.get_param_config_dict(),
-            "report" : self.selected_report.get_param_config_dict()
-        }
-        self.param_config = base64.urlsafe_b64encode(zlib.compress(json.dumps(params).encode())).decode()
-        logger.debug(f"set param config string with dictionary {params}")
+        # TODO: temporarily disabled
+        self.param_config = ""
+        return
+        # logger.debug("setting param config string")
+        # # we only want to set an url if the properties file was passed by url
+        # if self.experiment_data.properties_mode == "file":
+        #     self.param_config = ""
+        #     return
+        #
+        # params = {
+        #     "repidx" : self.reports.index(self.selected_report),
+        #     "expdata": self.experiment_data.get_param_config_dict(),
+        #     "report" : self.selected_report.get_param_config_dict()
+        # }
+        # self.param_config = base64.urlsafe_b64encode(zlib.compress(json.dumps(params).encode())).decode()
+        # logger.debug(f"set param config string with dictionary {params}")
 
 
 
