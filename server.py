@@ -19,8 +19,7 @@ class FullViewer(Viewer):
     selected_report = param.Selector(label="Report Type")
     experiment_data = param.Parameter(precedence=-1)
     param_config = param.String(precedence=-1) #encodes all relevant parameter information in a string that is passed to the url
-
-    log_messages = param.List(precedence=-1)
+    log_messages = param.String(precedence=-1)
 
     def __init__(self, **params):
         super().__init__(**params)
@@ -74,14 +73,13 @@ class FullViewer(Viewer):
                 sizing_mode="stretch_both",
                 scroll=True,
             ),
-            modal=pn.Column(pn.Column())
+            modal=pn.pane.Str(self.param.log_messages)
         )
 
 
     def log_event(self, record):
         if record.levelno >= logging.INFO:
-            self.log_messages.insert(0,custom_formatter.format(record))
-            self.template.modal[0].objects = [pn.Column(pn.pane.Str("\n".join(self.log_messages)))]
+            self.log_messages = custom_formatter.format(record) + "\n" + self.log_messages
         return True
 
     def __panel__(self):

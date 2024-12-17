@@ -236,7 +236,7 @@ class ExperimentData(param.Parameterized):
                 v for x in self.numeric_attributes.values() for v in [x.name_view, x.aggregator_view, x.min_wins_view]]
             self.algorithm_views.objects = self.algorithm_views.objects[0:2] + [
                 v for x in self.algorithms.values() for v in [x.name_view, x.alias_view]]
-            
+
             logger.info("done reading in properties")
 
         except Exception as e:
