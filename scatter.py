@@ -32,7 +32,9 @@ class ScatterReport(Report):
                 case_sensitive=False,
                 search_strategy='includes',
                 restrict=False,
-                margin=(0,0,0,20)
+                margin=(5, 0, 5, 0),
+                min_width=100,
+                sizing_mode="stretch_width",
             ),
             pn.widgets.AutocompleteInput.from_param(
                 self.param.y_attribute,
@@ -40,7 +42,9 @@ class ScatterReport(Report):
                 case_sensitive=False,
                 search_strategy='includes',
                 restrict=False,
-                margin=(0, 0, 0, 20)
+                margin=(5, 0, 5, 0),
+                min_width=100,
+                sizing_mode="stretch_width",
             ),
             pn.widgets.AutocompleteInput.from_param(
                 self.param.x_algorithm,
@@ -48,7 +52,9 @@ class ScatterReport(Report):
                 case_sensitive=False,
                 search_strategy='includes',
                 restrict=False,
-                margin=(0, 0, 0, 20)
+                margin=(5, 0, 5, 0),
+                min_width=100,
+                sizing_mode="stretch_width",
             ),
             pn.widgets.AutocompleteInput.from_param(
                 self.param.y_algorithm,
@@ -56,7 +62,9 @@ class ScatterReport(Report):
                 case_sensitive=False,
                 search_strategy='includes',
                 restrict=False,
-                margin=(0, 0, 0, 20)
+                margin=(5, 0, 5, 0),
+                min_width=100,
+                sizing_mode="stretch_width",
             ),
         ])
 

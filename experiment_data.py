@@ -21,11 +21,23 @@ class NumericAttribute(Viewer):
 
 
     def name_view(self):
-        return pn.pane.HTML(self.param.name, styles={"overflow-wrap": "break-word"}, sizing_mode="stretch_width")
+        return pn.pane.HTML(
+            self.param.name,
+            styles={"overflow-wrap": "break-word"},
+            sizing_mode="stretch_width"
+        )
     def aggregator_view(self):
-        return pn.widgets.Select.from_param(self.param.aggregator, name="", width=75)
+        return pn.widgets.Select.from_param(
+            self.param.aggregator,
+            name="",
+            width=75
+        )
     def min_wins_view(self):
-        return pn.widgets.Switch.from_param(self.param.min_wins, width=35)
+        return pn.widgets.Switch.from_param(
+            self.param.min_wins,
+            name="",
+            width=35
+        )
 
 
     @param.depends("min_wins", watch=True)
@@ -58,9 +70,19 @@ class Algorithm(Viewer):
 
 
     def name_view(self):
-        return pn.pane.HTML(self.param.name, styles={"overflow-wrap": "break-word"}, sizing_mode="stretch_width")
+        return pn.pane.HTML(
+            self.param.name,
+            styles={"overflow-wrap": "break-word"},
+            sizing_mode="stretch_width"
+        )
     def alias_view(self):
-        return pn.widgets.TextInput.from_param(self.param.alias, name="")
+        return pn.widgets.TextInput.from_param(
+            self.param.alias,
+            name="",
+            margin=(5,5,5,10),
+            min_width=100,
+            sizing_mode="stretch_width"
+        )
 
     def get_name(self):
         if self.alias == "":
@@ -116,18 +138,18 @@ class ExperimentData(param.Parameterized):
             pn.pane.HTML("<b>Attribute</b>"),
             pn.pane.HTML("<b>Aggregator</b>"),
             pn.pane.HTML("<b>Min wins</b>"),
-            name="Attributes", ncols=3)
+            name="Attributes", ncols=3, sizing_mode="stretch_width")
 
         self.algorithm_views = pn.GridBox(
             pn.pane.HTML("<b>Algorithm</b>"),
             pn.pane.HTML("<b>Alias</b>"),
-            name="Algorithms", ncols=2)
+            name="Algorithms", ncols=2, sizing_mode="stretch_width")
 
         self.param_view = pn.Column(
             pn.Row(
                 pn.pane.HTML(
                     "<label>Properties</label>",
-                    margin=(10, 0, 0, 20)
+                    margin=(10, 0, 0, 0)
                 ),
                 pn.widgets.TooltipIcon(
                     margin=(10, 0, 0, 0), value=
@@ -141,20 +163,26 @@ class ExperimentData(param.Parameterized):
                 widgets={'properties_mode': {
                     'widget_type': pn.widgets.RadioBoxGroup,
                     'inline': True}},
-                margin=(0, 0, -8, 10),
+                margin=(0, 0, -8, -10),
             ),
-            pn.Param(self.param.properties_url, margin=(0, 10),
+            pn.widgets.TextInput.from_param(
+                self.param.properties_url,
                 visible = (self.param.properties_mode.rx() == "url"),
+                name="",
+                margin=(5, 0, 5, 0),
+                min_width=100,
                 sizing_mode="stretch_width"
             ),
-            pn.Param(self.param.properties_file,
-                widgets={'properties_file': pn.widgets.FileInput},
-                margin=(0, 10),
+            pn.widgets.FileInput.from_param(
+                self.param.properties_file,
                 visible=(self.param.properties_mode.rx() == "file"),
-                sizing_mode="stretch_width"
+                name="",
+                margin=(5, 0, 5, 0),
+                min_width=100,
+                sizing_mode="stretch_width",
             ),
-            pn.Accordion(pn.rx(self.numeric_attr_views), margin=(0,15,0,15)),
-            pn.Accordion(pn.rx(self.algorithm_views), margin=(0,15,15,15)),
+            pn.Accordion(pn.rx(self.numeric_attr_views), margin=(10,0,5,-5), sizing_mode="stretch_width"),
+            pn.Accordion(pn.rx(self.algorithm_views), margin=(0,0,5,-5), sizing_mode="stretch_width"),
             sizing_mode="stretch_width"
         )
 

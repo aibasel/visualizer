@@ -58,7 +58,13 @@ class FullViewer(Viewer):
         self.template = GoldenTemplate(
             title='Visualizer',
             sidebar=pn.Column(
-                pn.Param(self.param.selected_report, expand_button=False),
+                pn.widgets.Select.from_param(
+                    self.param.selected_report,
+                    options={},
+                    margin=(10, 0, 5, 0),
+                    min_width=100,
+                    sizing_mode="stretch_width"
+                ),
                 pn.pane.Markdown("## Properties", margin=(25,0,0,0)),
                 pn.layout.Divider(margin=(-15,0,0,0)),
                 self.experiment_data.param_view,
@@ -75,6 +81,10 @@ class FullViewer(Viewer):
             ),
             modal=pn.pane.Str(self.param.log_messages)
         )
+        # HACK: if we initialize the Select widget with the right options, we
+        # get an expand button (https://github.com/holoviz/panel/issues/3836)
+        # Initializing it empty and changing the options afterwards avoids this.
+        self.template.sidebar[0].options = {x.name: x for x in self.reports}
 
 
     def log_event(self, record):
