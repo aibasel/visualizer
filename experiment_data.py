@@ -13,9 +13,10 @@ class NumericAttribute(Viewer):
     min_wins = param.Boolean(default=False, doc="Whether a lower value is better or not")
     aggregator = param.Selector(objects=['sum', 'mean', 'gmean'], default='sum', doc="The operation used when aggregating data")
 
-    def __init__(self, exp_data, **params):
+    def __init__(self, exp_data, id, **params):
         super().__init__(**params)
         self.exp_data = exp_data
+        self.id = id
         self.default_aggregator = self.aggregator
         self.default_min_wins = self.min_wins
 
@@ -44,9 +45,9 @@ class NumericAttribute(Viewer):
     def update_min_wins(self):
         logger.debug(f"Updating min wins for NumericAttribute {self.name}")
         if self.min_wins == self.default_min_wins:
-            self.exp_data.custom_min_wins.pop(self.name, None)
+            self.exp_data.custom_min_wins.pop(self.id, None)
         else:
-            self.exp_data.custom_min_wins[self.name] = self.min_wins
+            self.exp_data.custom_min_wins[self.id] = self.min_wins
         self.exp_data.param.trigger("custom_min_wins")
 
 
@@ -54,9 +55,9 @@ class NumericAttribute(Viewer):
     def update_aggregator(self):
         logger.debug(f"Updating aggregator for NumericAttribute {self.name}")
         if self.aggregator == self.default_aggregator:
-            self.exp_data.custom_aggregators.pop(self.name, None)
+            self.exp_data.custom_aggregators.pop(self.id, None)
         else:
-            self.exp_data.custom_aggregators[self.name] = self.aggregator
+            self.exp_data.custom_aggregators[self.id] = self.aggregator
         self.exp_data.param.trigger("custom_aggregators")
 
 
@@ -64,9 +65,10 @@ class NumericAttribute(Viewer):
 class Algorithm(Viewer):
     alias = param.String(default="")
 
-    def __init__(self, exp_data, **params):
+    def __init__(self, exp_data, id, **params):
         super().__init__(**params)
         self.exp_data = exp_data
+        self.id = id
 
 
     def name_view(self):
@@ -95,41 +97,45 @@ class Algorithm(Viewer):
     def update_alias(self):
         logger.debug(f"Updating alias for algorithm {self.name} to {self.alias}")
         if self.alias == "":
-            self.exp_data.custom_algorithm_aliases.pop(self.name, None)
+            self.exp_data.custom_algorithm_aliases.pop(self.id, None)
         else:
             in_use = False
-            for alg, alias in self.exp_data.custom_algorithm_aliases.items():
-                if alias == self.alias and alg != self.name:
+            for alg in self.exp_data.algorithms.values():
+                if alg != self and alg.get_name() == self.alias:
                     in_use = True
                     logger.warning(f"Ignoring alias for {self.name}: alias {self.alias} already in use for algorithm {alg}")
+                    self.alias = ""
+                    break
             if not in_use:
-                self.exp_data.custom_algorithm_aliases[self.name] = self.alias
+                self.exp_data.custom_algorithm_aliases[self.id] = self.alias
         self.exp_data.algorithms = {x.get_name() : x for x in self.exp_data.algorithms.values()}
         self.exp_data.param.trigger("custom_algorithm_aliases")
 
 
-# TODO: we need to somehow invalidate or update data when algorithm aliases change
+
 class ExperimentData(param.Parameterized):
 
     # widget parameters
-    properties_url = param.String()
-    properties_file = param.FileSelector()
     properties_mode = param.Selector(objects=["file", "url"], default="url",
         doc="whether the properties file should be uploaded as file or specified as url")
+    properties_url = param.String(default="", doc="A url pointing to a properties json file.")
+    properties_file = param.FileSelector()
 
     # internal parameters
     data = param.DataFrame(precedence=-1)
     attributes = param.List(default=[], precedence=-1)
+    sorted_num_attr_names = param.List(default=[], precedence=-1)
     numeric_attributes = param.Dict(default={}, precedence=-1) # values are NumericAttribute objects
-    algorithms = param.Dict(default = {}, precedence=-1)
+    sorted_alg_names = param.List(default=[], precedence=-1)
+    algorithms = param.Dict(default = {}, precedence=-1) # values are Algorithm objects
     domains = param.List(default=[], precedence=-1)
     num_problems = param.Integer(default=0)
     num_problems_by_domain = param.Dict(default={}, precedence=-1)
 
     # config string parameters
-    custom_min_wins = param.Dict(precedence=-1)
-    custom_aggregators = param.Dict(precedence=-1)
-    custom_algorithm_aliases = param.Dict(precedence=-1)
+    custom_min_wins = param.Dict(default={}, precedence=-1)
+    custom_aggregators = param.Dict(default={}, precedence=-1)
+    custom_algorithm_aliases = param.Dict(default={}, precedence=-1)
 
     def __init__(self, **params):
         super().__init__(**params)
@@ -203,6 +209,15 @@ class ExperimentData(param.Parameterized):
         return self.data.loc[attr_names][alg_names].rename(self.custom_algorithm_aliases)
 
 
+    def get_numeric_attribute_by_id(self, id):
+        return self.numeric_attributes[self.sorted_num_attr_names[int(id)]]
+
+    def get_algorithm_by_id(self, id):
+        id = int(id)
+        name = self.custom_algorithm_aliases.get(id,self.sorted_alg_names[id])
+        return self.algorithms[name]
+
+
     @param.depends("properties_mode", watch=True)
     def switch_properties_mode(self):
         logger.debug("start switch properties mode")
@@ -227,11 +242,13 @@ class ExperimentData(param.Parameterized):
         try:
             data = pd.read_json(properties, orient="index")
             attributes = [x for x in data.columns if x not in ["algorithm", "domain", "problem"]]
-            numeric_attributes = {x: NumericAttribute(name=x, exp_data=self)
-                for x in attributes if pd.api.types.is_numeric_dtype(data.dtypes[x])}
-            algorithms = {x: Algorithm(name=x, exp_data=self)
-                for x in data.algorithm.unique()}
-            domains = list(data.domain.unique())
+            sorted_num_attr_names = sorted([x for x in attributes if pd.api.types.is_numeric_dtype(data.dtypes[x])])
+            numeric_attributes = {x: NumericAttribute(name=x, exp_data=self, id=i)
+                for i,x in enumerate(sorted_num_attr_names)}
+            sorted_alg_names= sorted([x for x in data.algorithm.unique()])
+            algorithms = {x: Algorithm(name=x, exp_data=self, id=i)
+                for i,x in enumerate(sorted_alg_names)}
+            domains = sorted(list(data.domain.unique()))
             num_problems = 0 #actual value is set after pivoting data
             num_problems_by_domain = dict() #actual value is set after pivoting data
 
@@ -249,7 +266,9 @@ class ExperimentData(param.Parameterized):
             self.param.update({
                 "data": data,
                 "attributes" : attributes,
+                "sorted_num_attr_names" : sorted_num_attr_names,
                 "numeric_attributes" : numeric_attributes,
+                "sorted_alg_names" : sorted_alg_names,
                 "algorithms" : algorithms,
                 "domains" : domains,
                 "num_problems" : num_problems,
@@ -258,7 +277,6 @@ class ExperimentData(param.Parameterized):
                 "custom_aggregators": {},
                 "custom_algorithm_aliases": {},
             })
-
 
             self.numeric_attr_views.objects = self.numeric_attr_views.objects[0:3] + [
                 v for x in self.numeric_attributes.values() for v in [x.name_view, x.aggregator_view, x.min_wins_view]]
@@ -274,7 +292,9 @@ class ExperimentData(param.Parameterized):
             self.param.update({
                 "data": pd.DataFrame(),
                 "attributes" : [],
+                "sorted_num_attr_names" : [],
                 "numeric_attributes" : {},
+                "sorted_alg_names" : [],
                 "algorithms" : {},
                 "domains" : [],
                 "num_problems" : 0,
@@ -287,25 +307,41 @@ class ExperimentData(param.Parameterized):
                 logger.warning("Could not read properties")
 
 
-    # returns a dict containing all information needed for recreating the current view
-    def get_param_config_dict(self):
-        relevant_params = [
+    def get_watchers_for_param_config(self):
+        return [
+            "properties_mode",
             "properties_url",
+            "properties_file",
             "custom_min_wins",
             "custom_aggregators",
             "custom_algorithm_aliases"
         ]
-        return { key: self.param.values()[key] for key in relevant_params }
+
+    # returns a dict containing all information needed for recreating the current view
+    def get_param_config_dict(self):
+        d = {}
+        if self.properties_url != self.param["properties_url"].default:
+            d["url"] = self.properties_url
+        if self.custom_min_wins != self.param["custom_min_wins"].default:
+            d["min_wins"] = self.custom_min_wins
+        if self.custom_aggregators != self.param["custom_aggregators"].default:
+            d["aggs"] = self.custom_aggregators
+        if self.custom_algorithm_aliases != self.param["custom_algorithm_aliases"].default:
+            d["aliases"] = self.custom_algorithm_aliases
+        return d
 
 
     # sets parameters based on the param_config_dict
-    def set_params_from_param_config_dict(self, param_config_dict):
-        self.properties_url = param_config_dict.pop("properties_url")
-        self.param.update(param_config_dict)
-        for attribute, value in self.custom_min_wins.items():
-            self.numeric_attributes[attribute].min_wins = value
-        for attribute, value in self.custom_aggregators.items():
-            self.numeric_attributes[attribute].aggregator = value
-        for alg, alias in self.custom_algorithm_aliases.items():
-            self.algorithms[alg].alias = alias
-
+    def set_params_from_param_config_dict(self, d):
+        self.properties_mode = "url"
+        if "url" in d:
+            self.properties_url = d["url"]
+        if "min_wins" in d:
+            for id, value in d["min_wins"].items():
+                self.get_numeric_attribute_by_id(id).min_wins = value
+        if "aggs" in d:
+            for id, value in d["aggs"].items():
+                self.get_numeric_attribute_by_id(id).aggregator = value
+        if "aliases" in d:
+            for id, alias in d["aliases"].items():
+                self.get_algorithm_by_id(id).alias = alias

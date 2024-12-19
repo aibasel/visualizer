@@ -7,6 +7,7 @@ import panel as pn
 import param
 
 from custom_logging import logging
+from experiment_data import NumericAttribute, Algorithm
 from report import Report
 
 logger = logging.getLogger("visualizer.scatter")
@@ -14,11 +15,13 @@ logger = logging.getLogger("visualizer.scatter")
 
 class ScatterReport(Report):
 
-    x_attribute = param.Parameter(label="X Axis Attribute", default=None)
-    y_attribute = param.Parameter(label="Y Axis Attribute", default=None)
-    x_algorithm = param.Parameter(label="X Algorithm Attribute", default=None)
-    y_algorithm = param.Parameter(label="Y Algorithm Attribute", default=None)
+    # widget parameters
+    x_attribute = param.Parameter(label="X Axis Attribute", default="")
+    y_attribute = param.Parameter(label="Y Axis Attribute", default="")
+    x_algorithm = param.Parameter(label="X Algorithm Attribute", default="")
+    y_algorithm = param.Parameter(label="Y Algorithm Attribute", default="")
 
+    # internal parameters
     df = param.Parameter(precedence=-1)
 
 
@@ -74,7 +77,8 @@ class ScatterReport(Report):
     @param.depends("x_attribute", "y_attribute", "x_algorithm", "y_algorithm", watch=True)
     def update_data(self):
         logger.debug("start updating data")
-        if self.x_attribute == "" or self.y_attribute == "":
+        if (type(self.x_attribute) is not NumericAttribute or
+            type(self.y_attribute)  is not NumericAttribute):
             self.df = None
             logger.debug("end updating data (empty)")
             return
@@ -84,7 +88,7 @@ class ScatterReport(Report):
         # TODO: adjust once more than one alg pair is possible
         i=0
         for (xalg, yalg) in [(self.x_algorithm, self.y_algorithm)]:
-            if xalg == "" or yalg == "":
+            if type(xalg) is not Algorithm or type(yalg) is not Algorithm:
                 continue
             xcol = self.experiment_data.get_data(self.x_attribute, xalg)
             ycol = self.experiment_data.get_data(self.y_attribute, yalg)
@@ -158,12 +162,36 @@ class ScatterReport(Report):
         logger.debug("end __panel__")
         return self.plot
 
+    def get_watchers_for_param_config(self):
+        return [
+            "x_attribute",
+            "y_attribute",
+            "x_algorithm",
+            "y_algorithm"
+        ]
 
 
     def get_param_config_dict(self):
-        return {
-            "x_attribute" : self.x_attribute,
-            "y_attribute" : self.y_attribute,
-            "x_algorithm" : self.x_algorithm,
-            "y_algorithm" : self.y_algorithm
-        }
+        d = {}
+        if type(self.x_attribute) is NumericAttribute:
+            d['xattr'] = self.x_attribute.id
+        if type(self.y_attribute) is NumericAttribute:
+            d['yattr'] = self.y_attribute.id
+        if type(self.x_algorithm) is Algorithm:
+            d['xalg'] = self.x_algorithm.id
+        if type(self.y_algorithm) is Algorithm:
+            d['yalg'] = self.y_algorithm.id
+        return d
+
+
+    def set_params_from_param_config_dict(self, d):
+        update = {}
+        if "xattr" in d:
+            update["x_attribute"] = self.experiment_data.get_numeric_attribute_by_id(d["xattr"])
+        if "yattr" in d:
+            update["y_attribute"] = self.experiment_data.get_numeric_attribute_by_id(d["yattr"])
+        if "xalg" in d:
+            update["x_algorithm"] = self.experiment_data.get_algorithm_by_id(d["xalg"])
+        if "yalg" in d:
+            update["y_algorithm"] = self.experiment_data.get_algorithm_by_id(d["yalg"])
+        self.param.update(update)
