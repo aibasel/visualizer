@@ -32,6 +32,14 @@ class FullViewer(Viewer):
         ]
         self.param.selected_report.objects = self.reports
 
+        # Set up callback for logger output
+        stream_handler = logging.StreamHandler()
+        stream_handler.terminator = "  \n"
+        stream_handler.setFormatter(custom_formatter)
+        stream_handler.setLevel(logging.INFO)
+        stream_handler.addFilter(self.log_event)
+        logger.addHandler(stream_handler)
+
         # We wrap param and report views into a Column since we need one
         # constant object whose visibility we manipulate when switching
         # report type. (Param and report views might return new objects.)

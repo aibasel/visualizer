@@ -1,5 +1,5 @@
 from bokeh.plotting import figure
-from bokeh.models import HoverTool, TapTool, Legend, LegendItem, Span
+from bokeh.models import HoverTool, TapTool, Legend, LegendItem, Span, Range1d
 import math
 import numpy as np
 import pandas as pd
@@ -20,6 +20,9 @@ class ScatterReport(Report):
     y_attribute = param.Parameter(label="Y Axis Attribute", default="")
     x_algorithm = param.Parameter(label="X Algorithm Attribute", default="")
     y_algorithm = param.Parameter(label="Y Algorithm Attribute", default="")
+    x_scale = param.Selector(label="X Axis Scale", objects=["log", "linear"], default="log")
+    y_scale = param.Selector(label="Y Axis Scale", objects=["log", "linear"], default="log")
+    relative = param.Boolean(label="Relative", default=False, doc="If true, the values on the y axis are replaced with y/x.")
 
     # internal parameters
     df = param.Parameter(precedence=-1)
@@ -69,6 +72,22 @@ class ScatterReport(Report):
                 min_width=100,
                 sizing_mode="stretch_width",
             ),
+            pn.widgets.Select.from_param(
+                self.param.y_scale,
+                margin=(5, 0, 5, 0),
+                min_width=100,
+                sizing_mode="stretch_width"
+            ),
+            pn.widgets.Select.from_param(
+                self.param.x_scale,
+                margin=(5, 0, 5, 0),
+                min_width=100,
+                sizing_mode="stretch_width"
+            ),
+            pn.widgets.Checkbox.from_param(
+                self.param.relative,
+                margin=(5, 0, 5, 0),
+            ),
         ])
 
         self.plot = figure(active_scroll = "wheel_zoom", sizing_mode="stretch_both")
@@ -96,10 +115,9 @@ class ScatterReport(Report):
                 continue
             xalg_name = xalg.get_name()
             yalg_name = yalg.get_name()
-            yrel = ycol.div(xcol.replace(0, np.nan))
             name = xalg_name if xalg == yalg else f"{xalg_name} vs {yalg_name}"
             algs = [xalg_name] if xalg == yalg else [xalg_name, yalg_name]
-            new_frame = pd.DataFrame({'x':xcol, 'y':ycol, 'yrel': yrel, 'name':name, 'algs': [algs]*len(xcol)}).reset_index().set_index(index_order)
+            new_frame = pd.DataFrame({'x':xcol, 'y':ycol, 'name':name, 'algs': [algs]*len(xcol)}).reset_index().set_index(index_order)
             frames.append(new_frame)
             i=i+1
 
@@ -112,22 +130,76 @@ class ScatterReport(Report):
         logger.debug("end updating data")
 
 
-    @param.depends("df")
+    @param.depends("df", "x_scale", "y_scale", "relative")
     def __panel__(self):
         logger.debug("start __panel__")
-        self.plot = figure(active_scroll = "wheel_zoom", sizing_mode="stretch_both")
+        self.plot = figure(
+            active_scroll = "wheel_zoom", sizing_mode="stretch_both",
+            x_axis_type = self.x_scale, y_axis_type = self.y_scale)
         if self.df is None:
             logger.debug("end __panel__ (empty)")
             return self.plot
 
-        indices = self.df.index.get_level_values(0).unique()
+        df_alt = self.df.copy()
+
+        def get_failed(max_val, scale):
+            if scale == "log":
+                return int(10 ** math.ceil(math.log10(max_val)))
+            else:
+                return max_val*1.1
+
+        # Compute failed values and replace NaN with failed.
+        # TODO: it might be better to precompute the attribute wide max value once when loading the experiment data
+        x_failed = get_failed(np.nanmax(self.experiment_data.data.loc[self.x_attribute.name].values), self.x_scale)
+        y_failed = get_failed(np.nanmax(self.experiment_data.data.loc[self.x_attribute.name].values), self.y_scale)
+        with pd.option_context('future.no_silent_downcasting', True):
+            df_alt["x"] = df_alt["x"].fillna(x_failed)
+        # yrel needs to be computed right here, i.e. after we replace the x NaN
+        # values and before we replace the y NaN values. It ensures the value
+        # for yrel will be yrel_failed if y failed, and x_failed/y if x failed
+        # but y did not fail.
+        df_alt["yrel"] = df_alt["y"].div(df_alt["x"])
+        yrel_failed = get_failed(df_alt["yrel"].max(), self.y_scale)
+        with pd.option_context('future.no_silent_downcasting', True):
+            df_alt["y"] = df_alt["y"].fillna(y_failed)
+            df_alt["yrel"] = df_alt["yrel"].fillna(yrel_failed)
+
+        x="x"
+        y="y"
+        if self.relative:
+            y = "yrel"
+            y_failed = yrel_failed
+
+        # Drop all non-positive coordinates if we have log axes.
+        if self.x_scale == "log":
+            df_alt = df_alt[~(df_alt[x] <= 0)]
+        if self.y_scale == "log":
+            df_alt = df_alt[~(df_alt[y] <= 0)]
+        logger.info(f"dropped {len(self.df)-len(df_alt)} points with non-positive coordinates")
+
+        self.plot.x_range = Range1d(df_alt[x].min()*0.9, df_alt[x].max()*1.1)
+        self.plot.y_range = Range1d(df_alt[y].min()*0.9, df_alt[y].max()*1.1)
+
+        indices = df_alt.index.get_level_values(0).unique()
         legend_items = []
         for i, index in enumerate(indices):
-            p = self.plot.scatter(x="x", y="y", source=self.df.loc[[index]].reset_index(),
+            p = self.plot.scatter(x=x, y=y, source=df_alt.loc[[index]].reset_index(),
                 line_color="black", marker="x",
                 fill_color="black", fill_alpha=0.5,
                 size=10, muted_fill_alpha = 0.1)
             legend_items.append(LegendItem(label=index, renderers = [self.plot.renderers[i]]))
+
+        # helper lines
+        self.plot.renderers.extend([Span(location=x_failed, dimension='height', line_color='red')])
+        self.plot.renderers.extend([Span(location=y_failed, dimension='width', line_color='red')])
+        self.plot.xaxis.major_label_overrides = {x_failed : "failed"}
+        self.plot.yaxis.major_label_overrides = {y_failed : "failed"}
+        if self.relative:
+            self.plot.line(x=[df_alt[x].min()*0.9, x_failed], y=[1,1], color='black')
+        else:
+            min_max = [min(df_alt[x].min()*0.9, df_alt[y].min()*0.9), max(x_failed, y_failed)]
+            self.plot.line(x=min_max, y=min_max, color='black')
+
 
         # compute appropriate number of columns and height of legend
         indices_length = [len(i) for i in indices]
@@ -162,12 +234,16 @@ class ScatterReport(Report):
         logger.debug("end __panel__")
         return self.plot
 
+
     def get_watchers_for_param_config(self):
         return [
             "x_attribute",
             "y_attribute",
             "x_algorithm",
-            "y_algorithm"
+            "y_algorithm",
+            "x_scale",
+            "y_scale",
+            "relative"
         ]
 
 
@@ -181,6 +257,12 @@ class ScatterReport(Report):
             d['xalg'] = self.x_algorithm.id
         if type(self.y_algorithm) is Algorithm:
             d['yalg'] = self.y_algorithm.id
+        if self.x_scale != self.param.x_scale.default:
+            d['xscale'] = self.x_scale
+        if self.y_scale != self.param.y_scale.default:
+            d['yscale'] = self.y_scale
+        if self.relative != self.param.relative.default:
+            d['rel'] = self.relative
         return d
 
 
@@ -194,4 +276,10 @@ class ScatterReport(Report):
             update["x_algorithm"] = self.experiment_data.get_algorithm_by_id(d["xalg"])
         if "yalg" in d:
             update["y_algorithm"] = self.experiment_data.get_algorithm_by_id(d["yalg"])
+        if "xscale" in d:
+            update["x_scale"] = d["xscale"]
+        if "yscale" in d:
+            update["y_scale"] = d["yscale"]
+        if "rel" in d:
+            update["relative"] = d["rel"]
         self.param.update(update)
