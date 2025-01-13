@@ -6,6 +6,7 @@ import pandas as pd
 import panel as pn
 import param
 
+from algorithm_pairs_selector import AlgorithmPairsSelector
 from custom_logging import logging
 from experiment_data import NumericAttribute, Algorithm
 from report import Report
@@ -18,8 +19,9 @@ class ScatterReport(Report):
     # widget parameters
     x_attribute = param.Parameter(label="X Axis Attribute", default="")
     y_attribute = param.Parameter(label="Y Axis Attribute", default="")
-    x_algorithm = param.Parameter(label="X Algorithm Attribute", default="")
-    y_algorithm = param.Parameter(label="Y Algorithm Attribute", default="")
+    #x_algorithm = param.Parameter(label="X Algorithm Attribute", default="")
+    #y_algorithm = param.Parameter(label="Y Algorithm Attribute", default="")
+    algorithm_pairs_selector = param.Parameter()
     x_scale = param.Selector(label="X Axis Scale", objects=["log", "linear"], default="log")
     y_scale = param.Selector(label="Y Axis Scale", objects=["log", "linear"], default="log")
     relative = param.Boolean(label="Relative", default=False, doc="If true, the values on the y axis are replaced with y/x.")
@@ -31,57 +33,52 @@ class ScatterReport(Report):
     def __init__(self, experiment_data, **params):
         super().__init__(experiment_data, **params)
 
+        self.algorithm_pairs_selector = AlgorithmPairsSelector(self.experiment_data)
+
         self.param_view.extend([
-            pn.widgets.AutocompleteInput.from_param(
-                self.param.x_attribute,
-                options=self.experiment_data.param.numeric_attributes,
-                case_sensitive=False,
-                search_strategy='includes',
-                restrict=False,
-                margin=(5, 0, 5, 0),
-                min_width=100,
-                sizing_mode="stretch_width",
-            ),
-            pn.widgets.AutocompleteInput.from_param(
-                self.param.y_attribute,
-                options=self.experiment_data.param.numeric_attributes,
-                case_sensitive=False,
-                search_strategy='includes',
-                restrict=False,
-                margin=(5, 0, 5, 0),
-                min_width=100,
-                sizing_mode="stretch_width",
-            ),
-            pn.widgets.AutocompleteInput.from_param(
-                self.param.x_algorithm,
-                options=self.experiment_data.param.algorithms,
-                case_sensitive=False,
-                search_strategy='includes',
-                restrict=False,
-                margin=(5, 0, 5, 0),
-                min_width=100,
-                sizing_mode="stretch_width",
-            ),
-            pn.widgets.AutocompleteInput.from_param(
-                self.param.y_algorithm,
-                options=self.experiment_data.param.algorithms,
-                case_sensitive=False,
-                search_strategy='includes',
-                restrict=False,
-                margin=(5, 0, 5, 0),
-                min_width=100,
-                sizing_mode="stretch_width",
-            ),
-            pn.widgets.Select.from_param(
-                self.param.y_scale,
-                margin=(5, 0, 5, 0),
-                min_width=100,
+            pn.pane.HTML("<label>Attributes</label>", margin=(5, 0, -5, 0)),
+            pn.Row(
+                pn.widgets.AutocompleteInput.from_param(
+                    self.param.x_attribute,
+                    name="",
+                    options=self.experiment_data.param.numeric_attributes,
+                    case_sensitive=False,
+                    search_strategy='includes',
+                    restrict=False,
+                    margin=(5, 0, 5, 0),
+                    min_width=100,
+                    sizing_mode="stretch_width",
+                ),
+                pn.widgets.AutocompleteInput.from_param(
+                    self.param.y_attribute,
+                    name="",
+                    options=self.experiment_data.param.numeric_attributes,
+                    case_sensitive=False,
+                    search_strategy='includes',
+                    restrict=False,
+                    margin=(5, 0, 5, 0),
+                    min_width=100,
+                    sizing_mode="stretch_width",
+                ),
                 sizing_mode="stretch_width"
             ),
-            pn.widgets.Select.from_param(
-                self.param.x_scale,
-                margin=(5, 0, 5, 0),
-                min_width=100,
+            self.algorithm_pairs_selector,
+            pn.pane.HTML("<label>Scale</label>", margin=(5, 0, -5, 0)),
+            pn.Row(
+                pn.widgets.Select.from_param(
+                    self.param.x_scale,
+                    name="",
+                    margin=(5, 0, 5, 0),
+                    min_width=100,
+                    sizing_mode="stretch_width"
+                ),
+                pn.widgets.Select.from_param(
+                    self.param.y_scale,
+                    name="",
+                    margin=(5, 0, 5, 0),
+                    min_width=100,
+                    sizing_mode="stretch_width"
+                ),
                 sizing_mode="stretch_width"
             ),
             pn.widgets.Checkbox.from_param(
@@ -93,7 +90,8 @@ class ScatterReport(Report):
         self.plot = figure(active_scroll = "wheel_zoom", sizing_mode="stretch_both")
 
 
-    @param.depends("x_attribute", "y_attribute", "x_algorithm", "y_algorithm", watch=True)
+    # @param.depends("x_attribute", "y_attribute", "x_algorithm", "y_algorithm", watch=True)
+    @param.depends("x_attribute", "y_attribute",  "algorithm_pairs_selector.entries", watch=True)
     def update_data(self):
         logger.debug("start updating data")
         if (type(self.x_attribute) is not NumericAttribute or
@@ -106,7 +104,9 @@ class ScatterReport(Report):
         index_order = ['name', 'domain', 'problem']
         # TODO: adjust once more than one alg pair is possible
         i=0
-        for (xalg, yalg) in [(self.x_algorithm, self.y_algorithm)]:
+        for (xalg, yalg) in self.algorithm_pairs_selector.get_pairs():
+            print(xalg)
+            print(yalg)
             if type(xalg) is not Algorithm or type(yalg) is not Algorithm:
                 continue
             xcol = self.experiment_data.get_data(self.x_attribute, xalg)
@@ -239,8 +239,8 @@ class ScatterReport(Report):
         return [
             "x_attribute",
             "y_attribute",
-            "x_algorithm",
-            "y_algorithm",
+            # "x_algorithm",
+            # "y_algorithm",
             "x_scale",
             "y_scale",
             "relative"
@@ -253,10 +253,10 @@ class ScatterReport(Report):
             d['xattr'] = self.x_attribute.id
         if type(self.y_attribute) is NumericAttribute:
             d['yattr'] = self.y_attribute.id
-        if type(self.x_algorithm) is Algorithm:
-            d['xalg'] = self.x_algorithm.id
-        if type(self.y_algorithm) is Algorithm:
-            d['yalg'] = self.y_algorithm.id
+        # if type(self.x_algorithm) is Algorithm:
+        #     d['xalg'] = self.x_algorithm.id
+        # if type(self.y_algorithm) is Algorithm:
+        #     d['yalg'] = self.y_algorithm.id
         if self.x_scale != self.param.x_scale.default:
             d['xscale'] = self.x_scale
         if self.y_scale != self.param.y_scale.default:
@@ -272,10 +272,10 @@ class ScatterReport(Report):
             update["x_attribute"] = self.experiment_data.get_numeric_attribute_by_id(d["xattr"])
         if "yattr" in d:
             update["y_attribute"] = self.experiment_data.get_numeric_attribute_by_id(d["yattr"])
-        if "xalg" in d:
-            update["x_algorithm"] = self.experiment_data.get_algorithm_by_id(d["xalg"])
-        if "yalg" in d:
-            update["y_algorithm"] = self.experiment_data.get_algorithm_by_id(d["yalg"])
+        # if "xalg" in d:
+        #     update["x_algorithm"] = self.experiment_data.get_algorithm_by_id(d["xalg"])
+        # if "yalg" in d:
+        #     update["y_algorithm"] = self.experiment_data.get_algorithm_by_id(d["yalg"])
         if "xscale" in d:
             update["x_scale"] = d["xscale"]
         if "yscale" in d:
