@@ -19,8 +19,6 @@ class ScatterReport(Report):
     # widget parameters
     x_attribute = param.Parameter(label="X Axis Attribute", default="")
     y_attribute = param.Parameter(label="Y Axis Attribute", default="")
-    #x_algorithm = param.Parameter(label="X Algorithm Attribute", default="")
-    #y_algorithm = param.Parameter(label="Y Algorithm Attribute", default="")
     algorithm_pairs_selector = param.Parameter()
     x_scale = param.Selector(label="X Axis Scale", objects=["log", "linear"], default="log")
     y_scale = param.Selector(label="Y Axis Scale", objects=["log", "linear"], default="log")
@@ -29,11 +27,14 @@ class ScatterReport(Report):
     # internal parameters
     df = param.Parameter(precedence=-1)
 
+    # config string parameters
+    aps_config = param.List(default=[], precedence=-1)
 
     def __init__(self, experiment_data, **params):
         super().__init__(experiment_data, **params)
 
         self.algorithm_pairs_selector = AlgorithmPairsSelector(self.experiment_data)
+        self.param.algorithm_pairs = self.algorithm_pairs_selector.param.algorithm_pairs
 
         self.param_view.extend([
             pn.pane.HTML("<label>Attributes</label>", margin=(5, 0, -5, 0)),
@@ -90,8 +91,7 @@ class ScatterReport(Report):
         self.plot = figure(active_scroll = "wheel_zoom", sizing_mode="stretch_both")
 
 
-    # @param.depends("x_attribute", "y_attribute", "x_algorithm", "y_algorithm", watch=True)
-    @param.depends("x_attribute", "y_attribute",  "algorithm_pairs_selector.entries", watch=True)
+    @param.depends("x_attribute", "y_attribute",  "algorithm_pairs_selector.algorithm_pairs", watch=True)
     def update_data(self):
         logger.debug("start updating data")
         if (type(self.x_attribute) is not NumericAttribute or
@@ -102,13 +102,7 @@ class ScatterReport(Report):
 
         frames = []
         index_order = ['name', 'domain', 'problem']
-        # TODO: adjust once more than one alg pair is possible
-        i=0
-        for (xalg, yalg) in self.algorithm_pairs_selector.get_pairs():
-            print(xalg)
-            print(yalg)
-            if type(xalg) is not Algorithm or type(yalg) is not Algorithm:
-                continue
+        for (xalg, yalg) in self.algorithm_pairs_selector.algorithm_pairs:
             xcol = self.experiment_data.get_data(self.x_attribute, xalg)
             ycol = self.experiment_data.get_data(self.y_attribute, yalg)
             if len(xcol) != len(ycol):
@@ -119,7 +113,6 @@ class ScatterReport(Report):
             algs = [xalg_name] if xalg == yalg else [xalg_name, yalg_name]
             new_frame = pd.DataFrame({'x':xcol, 'y':ycol, 'name':name, 'algs': [algs]*len(xcol)}).reset_index().set_index(index_order)
             frames.append(new_frame)
-            i=i+1
 
         if len(frames) == 0:
             self.df = None
@@ -234,16 +227,18 @@ class ScatterReport(Report):
         logger.debug("end __panel__")
         return self.plot
 
+    @param.depends("algorithm_pairs_selector.algorithm_pairs", watch=True)
+    def set_aps_config(self):
+        self.aps_config = self.algorithm_pairs_selector.get_params()
 
     def get_watchers_for_param_config(self):
         return [
             "x_attribute",
             "y_attribute",
-            # "x_algorithm",
-            # "y_algorithm",
             "x_scale",
             "y_scale",
-            "relative"
+            "relative",
+            "aps_config"
         ]
 
 
@@ -253,29 +248,25 @@ class ScatterReport(Report):
             d['xattr'] = self.x_attribute.id
         if type(self.y_attribute) is NumericAttribute:
             d['yattr'] = self.y_attribute.id
-        # if type(self.x_algorithm) is Algorithm:
-        #     d['xalg'] = self.x_algorithm.id
-        # if type(self.y_algorithm) is Algorithm:
-        #     d['yalg'] = self.y_algorithm.id
         if self.x_scale != self.param.x_scale.default:
             d['xscale'] = self.x_scale
         if self.y_scale != self.param.y_scale.default:
             d['yscale'] = self.y_scale
         if self.relative != self.param.relative.default:
             d['rel'] = self.relative
+        if self.aps_config != self.param.aps_config.default:
+            d['aps_config'] = self.aps_config
         return d
 
 
     def set_params_from_param_config_dict(self, d):
+        if "aps_config" in d:
+            self.algorithm_pairs_selector.set_params(d["aps_config"])
         update = {}
         if "xattr" in d:
             update["x_attribute"] = self.experiment_data.get_numeric_attribute_by_id(d["xattr"])
         if "yattr" in d:
             update["y_attribute"] = self.experiment_data.get_numeric_attribute_by_id(d["yattr"])
-        # if "xalg" in d:
-        #     update["x_algorithm"] = self.experiment_data.get_algorithm_by_id(d["xalg"])
-        # if "yalg" in d:
-        #     update["y_algorithm"] = self.experiment_data.get_algorithm_by_id(d["yalg"])
         if "xscale" in d:
             update["x_scale"] = d["xscale"]
         if "yscale" in d:
