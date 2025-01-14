@@ -16,11 +16,12 @@ class AlgorithmPair(Viewer):
         self.exp_data = exp_data
         self.algorithm_pair_selector = algorithm_pair_selector
 
+    @param.depends("exp_data.algorithms")
     def first_view(self):
-        ret = pn.widgets.AutocompleteInput.from_param(
+        return pn.widgets.AutocompleteInput.from_param(
             self.param.first,
             name="",
-            options=list(self.exp_data.algorithms.keys()),
+            options=[""] + list(self.exp_data.algorithms.keys()),
             case_sensitive=False,
             search_strategy='includes',
             restrict=False,
@@ -28,13 +29,13 @@ class AlgorithmPair(Viewer):
             min_width=100,
             sizing_mode="stretch_width",
         )
-        return ret
 
+    @param.depends("exp_data.algorithms")
     def second_view(self):
-        ret = pn.widgets.AutocompleteInput.from_param(
+        return pn.widgets.AutocompleteInput.from_param(
             self.param.second,
             name="",
-            options=list(self.exp_data.algorithms.keys()),
+            options=[""] + list(self.exp_data.algorithms.keys()),
             case_sensitive=False,
             search_strategy='includes',
             restrict=False,
@@ -42,14 +43,13 @@ class AlgorithmPair(Viewer):
             min_width=100,
             sizing_mode="stretch_width",
         )
-        return ret
 
     @param.depends("first", "second", watch=True)
     def trigger_algorithm_pairs_update(self):
         self.algorithm_pair_selector.param.trigger("entries")
 
     def get_pairs(self):
-        if self.first == "" and self.second == "":
+        if self.first == "" or self.second == "":
             return []
         ret = []
         if self.first[0] == self.first[-1] == self.second[0] == self.second[-1]:
@@ -59,7 +59,7 @@ class AlgorithmPair(Viewer):
             match2 = [x for x in list(self.exp_data.algorithms.keys()) if subname2 in x]
             for alg1 in match1:
                 for alg2 in match2:
-                    if alg1.replace(self.first, "") == alg2.replace(self.second, ""):
+                    if alg1.replace(subname1, "") == alg2.replace(subname2, ""):
                         ret.append((self.exp_data.algorithms[alg1], self.exp_data.algorithms[alg2]))
         else:
             if self.first in list(self.exp_data.algorithms.keys()) and self.second in list(self.exp_data.algorithms.keys()):
