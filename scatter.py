@@ -13,6 +13,12 @@ from report import Report
 
 logger = logging.getLogger("visualizer.scatter")
 
+MARKERS = ["x", "circle", "square", "triangle", "asterisk",
+           "diamond", "cross", "star", "inverted_triangle", "plus",
+           "hex", "y", "circle_cross", "square_cross", "diamond_cross",
+           "circle_x", "square_x", "square_pin", "triangle_pin"]
+COLORS = ["black", "red", "blue", "teal", "orange",
+          "purple", "olive", "lime", "cyan"]
 
 class ScatterReport(Report):
 
@@ -23,6 +29,10 @@ class ScatterReport(Report):
     x_scale = param.Selector(label="X Axis Scale", objects=["log", "linear"], default="log")
     y_scale = param.Selector(label="Y Axis Scale", objects=["log", "linear"], default="log")
     relative = param.Boolean(label="Relative", default=False, doc="If true, the values on the y axis are replaced with y/x.")
+    group_by = param.Selector(label="Group By", objects=["name", "domain"], default="name")
+    marker_size = param.Integer(label="Marker Size", default = 7, bounds = (2,50))
+    marker_fill_alpha = param.Number(label="Marker Fill Alpha", default = 0.0, bounds=(0.0,1.0))
+    legend_width = param.Integer(label="Legend Width", default = 1800, bounds = (200,10000))
 
     # internal parameters
     df = param.Parameter(precedence=-1)
@@ -66,14 +76,14 @@ class ScatterReport(Report):
             self.algorithm_pairs_selector,
             pn.pane.HTML("<label>Scale</label>", margin=(5, 0, -5, 0)),
             pn.Row(
-                pn.widgets.Select.from_param(
+                pn.widgets.RadioButtonGroup.from_param(
                     self.param.x_scale,
                     name="",
                     margin=(5, 0, 5, 0),
                     min_width=100,
                     sizing_mode="stretch_width"
                 ),
-                pn.widgets.Select.from_param(
+                pn.widgets.RadioButtonGroup.from_param(
                     self.param.y_scale,
                     name="",
                     margin=(5, 0, 5, 0),
@@ -86,12 +96,37 @@ class ScatterReport(Report):
                 self.param.relative,
                 margin=(5, 0, 5, 0),
             ),
+            pn.pane.HTML("<label>Group By</label>", margin=(5, 0, -5, 0)),
+            pn.widgets.RadioButtonGroup.from_param(
+                self.param.group_by,
+                margin=(5, 0, 5, 0),
+                min_width=100,
+                sizing_mode="stretch_width"
+            ),
+            pn.widgets.IntSlider.from_param(
+                self.param.marker_size,
+                margin=(5, 0, 5, 0),
+                min_width=100,
+                sizing_mode="stretch_width"
+            ),
+            pn.widgets.FloatSlider.from_param(
+                self.param.marker_fill_alpha,
+                margin=(5, 0, 5, 0),
+                min_width=100,
+                sizing_mode="stretch_width"
+            ),
+            pn.widgets.IntSlider.from_param(
+                self.param.legend_width,
+                margin=(5, 0, 5, 0),
+                min_width=100,
+                sizing_mode="stretch_width"
+            )
         ])
 
         self.plot = figure(active_scroll = "wheel_zoom", sizing_mode="stretch_both")
 
 
-    @param.depends("x_attribute", "y_attribute",  "algorithm_pairs_selector.algorithm_pairs", watch=True)
+    @param.depends("x_attribute", "y_attribute",  "algorithm_pairs_selector.algorithm_pairs", "group_by", watch=True)
     def update_data(self):
         logger.debug("start updating data")
         if (type(self.x_attribute) is not NumericAttribute or
@@ -101,7 +136,7 @@ class ScatterReport(Report):
             return
 
         frames = []
-        index_order = ['name', 'domain', 'problem']
+        index_order = ['name', 'domain', 'problem'] if self.group_by == 'name' else ['domain', 'problem', 'name']
         for (xalg, yalg) in self.algorithm_pairs_selector.algorithm_pairs:
             xcol = self.experiment_data.get_data(self.x_attribute, xalg)
             ycol = self.experiment_data.get_data(self.y_attribute, yalg)
@@ -123,7 +158,7 @@ class ScatterReport(Report):
         logger.debug("end updating data")
 
 
-    @param.depends("df", "x_scale", "y_scale", "relative")
+    @param.depends("df", "x_scale", "y_scale", "relative", "marker_size", "marker_fill_alpha", "legend_width")
     def __panel__(self):
         logger.debug("start __panel__")
         self.plot = figure(
@@ -177,9 +212,9 @@ class ScatterReport(Report):
         legend_items = []
         for i, index in enumerate(indices):
             p = self.plot.scatter(x=x, y=y, source=df_alt.loc[[index]].reset_index(),
-                line_color="black", marker="x",
-                fill_color="black", fill_alpha=0.5,
-                size=10, muted_fill_alpha = 0.1)
+                line_color=COLORS[i%len(COLORS)], marker=MARKERS[i%len(MARKERS)],
+                fill_color=COLORS[i%len(COLORS)], fill_alpha=self.marker_fill_alpha,
+                size=self.marker_size, muted_fill_alpha = min(0.1,self.marker_fill_alpha))
             legend_items.append(LegendItem(label=index, renderers = [self.plot.renderers[i]]))
 
         # helper lines
@@ -204,7 +239,7 @@ class ScatterReport(Report):
                 continue
             max_num_chars_per_column = [max(indices_length[x*nrows:min((x+1)*nrows, len(indices))]) for x in range(ncols)]
             width = sum([7*x+20 for x in max_num_chars_per_column])+20
-            if (width > 1800): # TODO: make 1800 a parameter
+            if (width > self.legend_width):
                 ncols -= 1
                 break
 
@@ -227,18 +262,24 @@ class ScatterReport(Report):
         logger.debug("end __panel__")
         return self.plot
 
+
     @param.depends("algorithm_pairs_selector.algorithm_pairs", watch=True)
     def set_aps_config(self):
         self.aps_config = self.algorithm_pairs_selector.get_params()
+
 
     def get_watchers_for_param_config(self):
         return [
             "x_attribute",
             "y_attribute",
+            "aps_config",
             "x_scale",
             "y_scale",
             "relative",
-            "aps_config"
+            "group_by",
+            "marker_size",
+            "marker_fill_alpha",
+            "legend_width"
         ]
 
 
@@ -248,14 +289,22 @@ class ScatterReport(Report):
             d['xattr'] = self.x_attribute.id
         if type(self.y_attribute) is NumericAttribute:
             d['yattr'] = self.y_attribute.id
+        if self.aps_config != self.param.aps_config.default:
+            d['aps_config'] = self.aps_config
         if self.x_scale != self.param.x_scale.default:
             d['xscale'] = self.x_scale
         if self.y_scale != self.param.y_scale.default:
             d['yscale'] = self.y_scale
         if self.relative != self.param.relative.default:
             d['rel'] = self.relative
-        if self.aps_config != self.param.aps_config.default:
-            d['aps_config'] = self.aps_config
+        if self.group_by != self.param.group_by.default:
+            d['group_by'] = self.group_by
+        if self.marker_size != self.param.marker_size.default:
+            d['m_size'] = self.marker_size
+        if self.marker_fill_alpha != self.param.marker_fill_alpha.default:
+            d['m_alpha'] = self.marker_fill_alpha
+        if self.legend_width != self.param.legend_width.default:
+            d['l_width'] = self.legend_width
         return d
 
 
@@ -273,4 +322,12 @@ class ScatterReport(Report):
             update["y_scale"] = d["yscale"]
         if "rel" in d:
             update["relative"] = d["rel"]
+        if "group_by" in d:
+            update["group_by"] = d["group_by"]
+        if "m_size" in d:
+            update["marker_size"] = d["m_size"]
+        if "m_alpha" in d:
+            update["marker_fill_alpha"] = d["m_alpha"]
+        if "l_width" in d:
+            update["legend_width"] = d["l_width"]
         self.param.update(update)

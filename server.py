@@ -12,6 +12,7 @@ from scatter import ScatterReport
 from custom_golden_template import GoldenTemplate
 
 logger = logging.getLogger("visualizer")
+pn.config.throttled = True
 
 
 class FullViewer(Viewer):
