@@ -1,11 +1,13 @@
 import base64 #for encoding the compressed json parameter dict as url
 import json #for dumping the parameter dict as json
+import logging
 import panel as pn
 from panel.viewable import Viewer
 import param
+import traceback
 import zlib #for compressing the json parameter dict
 
-from custom_logging import logging, custom_formatter
+from user_logger import UserLogger
 from experiment_data import ExperimentData
 from scatter import ScatterReport
 
@@ -13,33 +15,34 @@ from custom_golden_template import GoldenTemplate
 
 logger = logging.getLogger("visualizer")
 pn.config.throttled = True
+global_user_logger = UserLogger()
 
+def exception_handler(ex):
+    global_user_logger.log(logging.ERROR, traceback.format_exc())
+    pn.state.notifications.error('Error: %s' % ex)
+
+pn.extension(exception_handler=exception_handler, notifications=True)
 
 class FullViewer(Viewer):
 
     selected_report = param.Selector(label="Report Type")
+    user_logger = param.Parameter(precedence=-1)
     experiment_data = param.Parameter(precedence=-1)
     param_config = param.String(precedence=-1) #encodes all relevant parameter information in a string that is passed to the url
-    log_messages = param.String(precedence=-1)
 
     def __init__(self, **params):
         super().__init__(**params)
 
-        self.experiment_data = ExperimentData()
+        self.user_logger = global_user_logger
+        self.experiment_data = ExperimentData(user_logger=self.user_logger)
         self.reports = [
-            ScatterReport(name="A", experiment_data=self.experiment_data),
-            ScatterReport(name="B", experiment_data=self.experiment_data),
-            ScatterReport(name="C", experiment_data=self.experiment_data),
+            ScatterReport(name="A", experiment_data=self.experiment_data, user_logger=self.user_logger),
+            ScatterReport(name="B", experiment_data=self.experiment_data, user_logger=self.user_logger),
+            ScatterReport(name="C", experiment_data=self.experiment_data, user_logger=self.user_logger),
         ]
         self.param.selected_report.objects = self.reports
 
-        # Set up callback for logger output
-        stream_handler = logging.StreamHandler()
-        stream_handler.terminator = "  \n"
-        stream_handler.setFormatter(custom_formatter)
-        stream_handler.setLevel(logging.INFO)
-        stream_handler.addFilter(self.log_event)
-        logger.addHandler(stream_handler)
+
 
         # We wrap param and report views into a Column since we need one
         # constant object whose visibility we manipulate when switching
@@ -72,7 +75,7 @@ class FullViewer(Viewer):
                 sizing_mode="stretch_both",
                 scroll=True,
             ),
-            modal=pn.pane.Str(self.param.log_messages)
+            modal=self.user_logger
         )
         # HACK: if we initialize the Select widget with the right options, we
         # get an expand button (https://github.com/holoviz/panel/issues/3836)
@@ -80,13 +83,9 @@ class FullViewer(Viewer):
         self.template.sidebar[0].options = {x.name: x for x in self.reports}
 
 
-    def log_event(self, record):
-        if record.levelno >= logging.INFO:
-            self.log_messages = custom_formatter.format(record) + "\n" + self.log_messages
-        return True
-
     def __panel__(self):
         return self.template
+
 
     @param.depends("selected_report", watch=True)
     def report_selected(self):

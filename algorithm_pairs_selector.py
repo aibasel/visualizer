@@ -1,11 +1,10 @@
+import logging
 import panel as pn
 from panel.viewable import Viewer
 import param
 
-from custom_logging import logging
-from experiment_data import Algorithm
-
 logger = logging.getLogger("visualizer.algorithm_pairs_selector")
+
 
 class AlgorithmPair(Viewer):
     first = param.Parameter(default="")

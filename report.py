@@ -1,8 +1,9 @@
+import logging
 import panel as pn
 from panel.viewable import Viewer
 import param
 
-from custom_logging import logging
+from user_logger import UserLogger
 from experiment_data import ExperimentData
 
 logger = logging.getLogger("visualizer.report")
@@ -14,15 +15,18 @@ class Report(Viewer):
 
 
     def __init__(self, experiment_data, **params):
+        self.user_logger = params.pop("user_logger", UserLogger())
         super().__init__(**params)
 
         self.experiment_data=experiment_data
         self.param_view = pn.Column(sizing_mode="stretch_width") #stores all report parameter widgets
 
+
     # Returns a list of parameters who when changed trigger an update to the
     # param_config string stored in server.py.
     def get_watchers_for_param_config(self):
         return list(self.param.values().keys())
+
 
     # Returns a dict containing all information needed for recreating the
     # current view. This dict will be built every time any of the parameters
@@ -31,6 +35,7 @@ class Report(Viewer):
         ret = self.param.values()
         ret.pop("name")
         return ret
+
 
     # Sets parameters based on the given param_config_dict, which was built by
     # get_param_config_dict().

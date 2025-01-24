@@ -1,5 +1,6 @@
 from bokeh.plotting import figure
 from bokeh.models import HoverTool, TapTool, Legend, LegendItem, Span, Range1d
+import logging
 import math
 import numpy as np
 import pandas as pd
@@ -7,7 +8,6 @@ import panel as pn
 import param
 
 from algorithm_pairs_selector import AlgorithmPairsSelector
-from custom_logging import logging
 from experiment_data import NumericAttribute, Algorithm
 from report import Report
 
@@ -203,7 +203,7 @@ class ScatterReport(Report):
             df_alt = df_alt[~(df_alt[x] <= 0)]
         if self.y_scale == "log":
             df_alt = df_alt[~(df_alt[y] <= 0)]
-        logger.info(f"dropped {len(self.df)-len(df_alt)} points with non-positive coordinates")
+        self.user_logger.log(logging.INFO, f"dropped {len(self.df)-len(df_alt)} points with non-positive coordinates")
 
         self.plot.x_range = Range1d(df_alt[x].min()*0.9, df_alt[x].max()*1.1)
         self.plot.y_range = Range1d(df_alt[y].min()*0.9, df_alt[y].max()*1.1)

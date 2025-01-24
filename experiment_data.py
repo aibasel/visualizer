@@ -1,10 +1,11 @@
 from io import BytesIO # for reading in bytestrings for file upload
+import logging
 import pandas as pd
 import panel as pn
 from panel.viewable import Viewer
 import param
 
-from custom_logging import logging
+from user_logger import UserLogger
 
 logger = logging.getLogger("visualizer.experiment_data")
 
@@ -103,7 +104,7 @@ class Algorithm(Viewer):
             for alg in self.exp_data.algorithms.values():
                 if alg != self and alg.get_name() == self.alias:
                     in_use = True
-                    logger.warning(f"Ignoring alias for {self.name}: alias {self.alias} already in use for algorithm {alg}")
+                    self.exp_data.user_logger.log(logging.WARNING, f"Ignoring alias for {self.name}: alias {self.alias} already in use for algorithm {alg}")
                     self.alias = ""
                     break
             if not in_use:
@@ -138,6 +139,7 @@ class ExperimentData(param.Parameterized):
     custom_algorithm_aliases = param.Dict(default={}, precedence=-1)
 
     def __init__(self, **params):
+        self.user_logger = params.pop("user_logger", UserLogger())
         super().__init__(**params)
 
         self.numeric_attr_views = pn.GridBox(
@@ -237,7 +239,7 @@ class ExperimentData(param.Parameterized):
         elif self.properties_file is not None:
             properties = BytesIO(self.properties_file)
         if properties is not None:
-            logger.info("start reading in properties from " + ("file" if self.properties_mode == "file" else "url " + properties))
+            self.user_logger.log(logging.INFO, "start reading in properties from " + ("file" if self.properties_mode == "file" else "url " + properties))
 
         try:
             data = pd.read_json(properties, orient="index")
@@ -283,7 +285,7 @@ class ExperimentData(param.Parameterized):
             self.algorithm_views.objects = self.algorithm_views.objects[0:2] + [
                 v for x in self.algorithms.values() for v in [x.name_view, x.alias_view]]
 
-            logger.info("done reading in properties")
+            self.user_logger.log(logging.INFO, "finished reading in properties")
 
         except Exception as e:
             self.numeric_attr_views.objects = self.numeric_attr_views.objects[0:3]
@@ -304,7 +306,7 @@ class ExperimentData(param.Parameterized):
                 "custom_algorithm_aliases": {}
             })
             if properties is not None:
-                logger.warning("Could not read properties")
+                self.user_logger.log(logging.ERROR, "Could not read properties")
 
 
     def get_watchers_for_param_config(self):
