@@ -7,9 +7,10 @@ import param
 import traceback
 import zlib #for compressing the json parameter dict
 
-from user_logger import UserLogger
 from experiment_data import ExperimentData
+from problem_table import ProblemTable
 from scatter import ScatterReport
+from user_logger import UserLogger
 
 from custom_golden_template import GoldenTemplate
 
@@ -36,9 +37,8 @@ class FullViewer(Viewer):
         self.user_logger = global_user_logger
         self.experiment_data = ExperimentData(user_logger=self.user_logger)
         self.reports = [
-            ScatterReport(name="A", experiment_data=self.experiment_data, user_logger=self.user_logger),
-            ScatterReport(name="B", experiment_data=self.experiment_data, user_logger=self.user_logger),
-            ScatterReport(name="C", experiment_data=self.experiment_data, user_logger=self.user_logger),
+            ScatterReport(name="Scatter Plot", experiment_data=self.experiment_data, user_logger=self.user_logger),
+            ProblemTable(name="Problem Table", experiment_data=self.experiment_data, user_logger=self.user_logger),
         ]
         self.param.selected_report.objects = self.reports
 

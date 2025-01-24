@@ -131,6 +131,7 @@ class ExperimentData(param.Parameterized):
     sorted_alg_names = param.List(default=[], precedence=-1)
     algorithms = param.Dict(default = {}, precedence=-1) # values are Algorithm objects
     domains = param.List(default=[], precedence=-1)
+    problems = param.Dict(default = {}, precedence=-1)
     num_problems = param.Integer(default=0)
     num_problems_by_domain = param.Dict(default={}, precedence=-1)
 
@@ -262,9 +263,11 @@ class ExperimentData(param.Parameterized):
             # reorder and sort such that attribute is the first index column
             data = data.reorder_levels(["attribute","domain","problem"]).sort_index()
 
-            for domain in self.domains:
-                num_problems_by_domain[domain] = [x for x in data.loc[(self.attributes[0],domain)].index.get_level_values('problem')]
+            problems = dict()
+            for domain in domains:
+                problems[domain] = [x for x in data.loc[(self.attributes[0],domain)].index.get_level_values('problem')]
                 num_problems  += len(num_problems_by_domain[domain])
+            print(problems)
 
             self.param.update({
                 "data": data,
@@ -274,6 +277,7 @@ class ExperimentData(param.Parameterized):
                 "sorted_alg_names" : sorted_alg_names,
                 "algorithms" : algorithms,
                 "domains" : domains,
+                "problems": problems,
                 "num_problems" : num_problems,
                 "num_problems_by_domain" : num_problems_by_domain,
                 "custom_min_wins": {},
@@ -300,6 +304,7 @@ class ExperimentData(param.Parameterized):
                 "sorted_alg_names" : [],
                 "algorithms" : {},
                 "domains" : [],
+                "problems": {},
                 "num_problems" : 0,
                 "num_problems_by_domain" : {},
                 "custom_min_wins": {},
