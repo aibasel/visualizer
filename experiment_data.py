@@ -8,6 +8,7 @@ import param
 from user_logger import UserLogger
 
 logger = logging.getLogger("visualizer.experiment_data")
+pd.set_option('future.no_silent_downcasting', True)
 
 
 class NumericAttribute(Viewer):

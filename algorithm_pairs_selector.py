@@ -78,11 +78,11 @@ class AlgorithmPairsSelector(Viewer):
         self.entries = [AlgorithmPair(self, self.exp_data)]
 
         self.param_view = pn.Column(
-            pn.pane.HTML("<label>Algorithms</label>", margin=(5,0,0,0)),
+            pn.pane.HTML("<label>Algorithms</label>", margin=(5,0,5,0)),
             pn.Column(
-                pn.Row(self.entries[0].first_view, self.entries[0].second_view, margin=(-5,0,0,0))
+                pn.Row(self.entries[0].first_view, self.entries[0].second_view, margin=(-10,0,0,0))
             ),
-            pn.widgets.Button(name='+', button_type='primary', margin=(5,0,5,0))
+            pn.widgets.Button(name='+', button_type='primary', margin=(-2,0,5,0))
         )
 
         def add_button_clicked(event):
@@ -91,14 +91,16 @@ class AlgorithmPairsSelector(Viewer):
             self.entries.append(AlgorithmPair(self, self.exp_data))
             # TODO: it would be nicer to define the param_view above reactively to just contain a row for each entry
             # (then we could also avoid the setting of param_view in set_params()
-            self.param_view[1].append(pn.Row(self.entries[-1].first_view, self.entries[-1].second_view, margin=(-5,0,0,0)))
+            self.param_view[1].append(pn.Row(self.entries[-1].first_view, self.entries[-1].second_view, margin=(-10,0,0,0)))
 
         pn.bind(add_button_clicked, self.param_view[-1], watch=True)
 
 
     @param.depends("entries", watch=True)
     def set_pairs(self):
-        self.algorithm_pairs = [pair for object in self.entries for pair in object.algorithm_pairs]
+        # We transform the list to a dict and back to a list to eliminate
+        # duplicates but preserving the order.
+        self.algorithm_pairs = list(dict.fromkeys([pair for object in self.entries for pair in object.algorithm_pairs]))
 
 
     def __panel__(self):
@@ -112,4 +114,4 @@ class AlgorithmPairsSelector(Viewer):
 
     def set_params(self, l):
         self.entries = [AlgorithmPair(self, self.exp_data, first=x[0], second=x[1]) for x in l]
-        self.param_view[1].objects = [pn.Row(x.first_view, x.second_view, margin=(-5,0,0,0)) for x in self.entries]
+        self.param_view[1].objects = [pn.Row(x.first_view, x.second_view, margin=(-10,0,0,0)) for x in self.entries]

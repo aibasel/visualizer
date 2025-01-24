@@ -30,9 +30,10 @@ class ScatterReport(Report):
     y_scale = param.Selector(label="Y Axis Scale", objects=["log", "linear"], default="log")
     relative = param.Boolean(label="Relative", default=False, doc="If true, the values on the y axis are replaced with y/x.")
     group_by = param.Selector(label="Group By", objects=["name", "domain"], default="name")
+    replace_zero = param.Number(label="Replace 0 with", default=0, doc="Replace all 0 values with the given values (useful for log plots).")
     marker_size = param.Integer(label="Marker Size", default = 7, bounds = (2,50))
     marker_fill_alpha = param.Number(label="Marker Fill Alpha", default = 0.0, bounds=(0.0,1.0))
-    legend_width = param.Integer(label="Legend Width", default = 1800, bounds = (200,10000))
+    legend_width = param.Integer(label="Legend Width", default = 1500, bounds = (200,5000))
 
     # internal parameters
     df = param.Parameter(precedence=-1)
@@ -103,6 +104,12 @@ class ScatterReport(Report):
                 min_width=100,
                 sizing_mode="stretch_width"
             ),
+            pn.widgets.FloatInput.from_param(
+                self.param.replace_zero,
+                margin=(5, 0, 5, 0),
+                min_width=100,
+                sizing_mode="stretch_width"
+            ),
             pn.widgets.IntSlider.from_param(
                 self.param.marker_size,
                 margin=(5, 0, 5, 0),
@@ -136,6 +143,7 @@ class ScatterReport(Report):
             return
 
         frames = []
+        # TODO: resetting the index leads to alphabetical order even for order by algorithm pair
         index_order = ['name', 'domain', 'problem'] if self.group_by == 'name' else ['domain', 'problem', 'name']
         for (xalg, yalg) in self.algorithm_pairs_selector.algorithm_pairs:
             xcol = self.experiment_data.get_data(self.x_attribute, xalg)
@@ -168,64 +176,91 @@ class ScatterReport(Report):
             logger.debug("end __panel__ (empty)")
             return self.plot
 
-        df_alt = self.df.copy()
+        df_copy = self.df.copy()
+        df_copy = df_copy.replace(0.0, self.replace_zero)
 
-        def get_failed(max_val, scale):
+
+        # Compute axis labels
+        def get_axis_label(dim):
+            other = "y" if dim == "x" else "x"
+            df_inf = df_copy.replace(np.nan, np.inf)
+            dim_failed = df_inf[(df_inf[dim] == np.inf)]
+            dim_failed_other_succ = dim_failed[(dim_failed[other] != np.inf)]
+            dim_less = df_inf[(df_inf[dim]-df_inf[other] < 0)]
+            dim_less_other_succ = dim_less[(dim_less[other] != np.inf)]
+            return (f"{dim}<{other}: {len(dim_less)}      "
+                    f"{dim}<{other}, {other} not failed: {len(dim_less_other_succ)}      "
+                    f"{dim} failed: {len(dim_failed)}      "
+                    f"{dim} failed,{other} not failed: {len(dim_failed_other_succ)}")
+        self.plot.xaxis.axis_label = get_axis_label("x")
+        self.plot.yaxis.axis_label = get_axis_label("y")
+
+        # Compute failed values and replace NaN with failed.
+        def get_failed(df, scale):
+            max_val = np.nanmax(df.replace(np.inf, np.nan).values)
             if scale == "log":
                 return int(10 ** math.ceil(math.log10(max_val)))
             else:
                 return max_val*1.1
-
-        # Compute failed values and replace NaN with failed.
         # TODO: it might be better to precompute the attribute wide max value once when loading the experiment data
-        x_failed = get_failed(np.nanmax(self.experiment_data.data.loc[self.x_attribute.name].values), self.x_scale)
-        y_failed = get_failed(np.nanmax(self.experiment_data.data.loc[self.x_attribute.name].values), self.y_scale)
-        with pd.option_context('future.no_silent_downcasting', True):
-            df_alt["x"] = df_alt["x"].fillna(x_failed)
+        x_failed_val = get_failed(self.experiment_data.data.loc[self.x_attribute.name], self.x_scale)
+        y_failed_val = get_failed(self.experiment_data.data.loc[self.y_attribute.name], self.y_scale)
+        df_copy["x"] = df_copy["x"].fillna(x_failed_val)
         # yrel needs to be computed right here, i.e. after we replace the x NaN
         # values and before we replace the y NaN values. It ensures the value
-        # for yrel will be yrel_failed if y failed, and x_failed/y if x failed
+        # for yrel will be yrel_failed_val if y failed, and x_failed_val/y if x failed
         # but y did not fail.
-        df_alt["yrel"] = df_alt["y"].div(df_alt["x"])
-        yrel_failed = get_failed(df_alt["yrel"].max(), self.y_scale)
-        with pd.option_context('future.no_silent_downcasting', True):
-            df_alt["y"] = df_alt["y"].fillna(y_failed)
-            df_alt["yrel"] = df_alt["yrel"].fillna(yrel_failed)
+        df_copy["yrel"] = df_copy["y"].astype("float64").div(df_copy["x"].astype("float64"))
+        yrel_failed_val = get_failed(df_copy["yrel"], self.y_scale)
+        df_copy["y"] = df_copy["y"].fillna(y_failed_val)
+        df_copy["yrel"] = df_copy["yrel"].fillna(yrel_failed_val)
 
         x="x"
         y="y"
         if self.relative:
             y = "yrel"
-            y_failed = yrel_failed
+            y_failed_val = yrel_failed_val
 
         # Drop all non-positive coordinates if we have log axes.
         if self.x_scale == "log":
-            df_alt = df_alt[~(df_alt[x] <= 0)]
+            df_copy = df_copy[~(df_copy[x] <= 0)]
         if self.y_scale == "log":
-            df_alt = df_alt[~(df_alt[y] <= 0)]
-        self.user_logger.log(logging.INFO, f"dropped {len(self.df)-len(df_alt)} points with non-positive coordinates")
+            df_copy = df_copy[~(df_copy[y] <= 0)]
+        # Drop all points where y_rel is infinity if we plot yrel.
+        if y == "yrel":
+            df_copy = df_copy[~(df_copy[y] != np.inf)]
+        size_diff = len(self.df)-len(df_copy)
+        if len(df_copy) == 0:
+            self.user_logger.log(logging.WARNING,
+                "All points have been dropped due to non-positive values in log "
+                "plots or infinite values in relative y.")
+            return self.plot
+        elif size_diff > 0:
+            self.user_logger.log(logging.INFO,
+                f"Dropped {size_diff} points due to non-positive values in log "
+                "plots or infinite values in relative y.")
 
-        self.plot.x_range = Range1d(df_alt[x].min()*0.9, df_alt[x].max()*1.1)
-        self.plot.y_range = Range1d(df_alt[y].min()*0.9, df_alt[y].max()*1.1)
+        self.plot.x_range = Range1d(df_copy[x].min()*0.9, df_copy[x].max()*1.1)
+        self.plot.y_range = Range1d(df_copy[y].min()*0.9, df_copy[y].max()*1.1)
 
-        indices = df_alt.index.get_level_values(0).unique()
+        indices = df_copy.index.get_level_values(0).unique()
         legend_items = []
         for i, index in enumerate(indices):
-            p = self.plot.scatter(x=x, y=y, source=df_alt.loc[[index]].reset_index(),
+            p = self.plot.scatter(x=x, y=y, source=df_copy.loc[[index]].reset_index(),
                 line_color=COLORS[i%len(COLORS)], marker=MARKERS[i%len(MARKERS)],
                 fill_color=COLORS[i%len(COLORS)], fill_alpha=self.marker_fill_alpha,
                 size=self.marker_size, muted_fill_alpha = min(0.1,self.marker_fill_alpha))
             legend_items.append(LegendItem(label=index, renderers = [self.plot.renderers[i]]))
 
         # helper lines
-        self.plot.renderers.extend([Span(location=x_failed, dimension='height', line_color='red')])
-        self.plot.renderers.extend([Span(location=y_failed, dimension='width', line_color='red')])
-        self.plot.xaxis.major_label_overrides = {x_failed : "failed"}
-        self.plot.yaxis.major_label_overrides = {y_failed : "failed"}
+        self.plot.renderers.extend([Span(location=x_failed_val, dimension='height', line_color='red')])
+        self.plot.renderers.extend([Span(location=y_failed_val, dimension='width', line_color='red')])
+        self.plot.xaxis.major_label_overrides = {x_failed_val : "failed"}
+        self.plot.yaxis.major_label_overrides = {y_failed_val : "failed"}
         if self.relative:
-            self.plot.line(x=[df_alt[x].min()*0.9, x_failed], y=[1,1], color='black')
+            self.plot.line(x=[df_copy[x].min()*0.9, x_failed_val], y=[1,1], color='black')
         else:
-            min_max = [min(df_alt[x].min()*0.9, df_alt[y].min()*0.9), max(x_failed, y_failed)]
+            min_max = [min(df_copy[x].min()*0.9, df_copy[y].min()*0.9), max(x_failed_val, y_failed_val)]
             self.plot.line(x=min_max, y=min_max, color='black')
 
 
@@ -263,6 +298,7 @@ class ScatterReport(Report):
         return self.plot
 
 
+    # TODO: figure out if we can do this more directly
     @param.depends("algorithm_pairs_selector.algorithm_pairs", watch=True)
     def set_aps_config(self):
         self.aps_config = self.algorithm_pairs_selector.get_params()
