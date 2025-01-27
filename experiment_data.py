@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from io import BytesIO # for reading in bytestrings for file upload
 import logging
 import pandas as pd
@@ -131,9 +132,8 @@ class ExperimentData(param.Parameterized):
     sorted_alg_names = param.List(default=[], precedence=-1)
     algorithms = param.Dict(default = {}, precedence=-1) # values are Algorithm objects
     domains = param.List(default=[], precedence=-1)
-    problems = param.Dict(default = {}, precedence=-1)
     num_problems = param.Integer(default=0)
-    num_problems_by_domain = param.Dict(default={}, precedence=-1)
+    problems_by_domain = param.Dict(default={}, precedence=-1)
 
     # config string parameters
     custom_min_wins = param.Dict(default={}, precedence=-1)
@@ -189,7 +189,7 @@ class ExperimentData(param.Parameterized):
                 name="",
                 margin=(5, 0, 5, 0),
                 min_width=100,
-                sizing_mode="stretch_width",
+                sizing_mode="stretch_width"
             ),
             pn.Accordion(pn.rx(self.numeric_attr_views), margin=(10,0,5,-5), sizing_mode="stretch_width"),
             pn.Accordion(pn.rx(self.algorithm_views), margin=(0,0,5,-5), sizing_mode="stretch_width"),
@@ -202,14 +202,15 @@ class ExperimentData(param.Parameterized):
         attr_names = []
         if type(attributes) is NumericAttribute:
             attr_names = attributes.name
-        elif attributes is list:
+        elif isinstance(attributes, Iterable):
             attr_names = [x.name for x in attributes if type(x) is NumericAttribute]
         alg_names = []
         if type(algorithms) is Algorithm:
             alg_names = algorithms.name
-        elif algorithms is list:
+        elif isinstance(algorithms, Iterable):
             alg_names = [x.name for x in algorithms if type(x) is Algorithm]
         logger.debug("end get data")
+        # TODO: renaming is currently not working, because custom_algorithm_aliases uses indexes instead of names
         return self.data.loc[attr_names][alg_names].rename(self.custom_algorithm_aliases)
 
 
@@ -254,7 +255,6 @@ class ExperimentData(param.Parameterized):
                 for i,x in enumerate(sorted_alg_names)}
             domains = sorted(list(data.domain.unique()))
             num_problems = 0 #actual value is set after pivoting data
-            num_problems_by_domain = dict() #actual value is set after pivoting data
 
             # pivot such that the columns are a combination of algorithm-attribute, and then stack such that the attribute becomes part of the index
             data =data.pivot(index=["domain","problem"], columns="algorithm", values=attributes).stack(0, future_stack=True)
@@ -263,11 +263,10 @@ class ExperimentData(param.Parameterized):
             # reorder and sort such that attribute is the first index column
             data = data.reorder_levels(["attribute","domain","problem"]).sort_index()
 
-            problems = dict()
+            problems_by_domain = dict()
             for domain in domains:
-                problems[domain] = [x for x in data.loc[(self.attributes[0],domain)].index.get_level_values('problem')]
-                num_problems  += len(num_problems_by_domain[domain])
-            print(problems)
+                problems_by_domain[domain] = [x for x in data.loc[(attributes[0],domain)].index.get_level_values('problem')]
+                num_problems  += len(problems_by_domain[domain])
 
             self.param.update({
                 "data": data,
@@ -277,9 +276,8 @@ class ExperimentData(param.Parameterized):
                 "sorted_alg_names" : sorted_alg_names,
                 "algorithms" : algorithms,
                 "domains" : domains,
-                "problems": problems,
                 "num_problems" : num_problems,
-                "num_problems_by_domain" : num_problems_by_domain,
+                "problems_by_domain" : problems_by_domain,
                 "custom_min_wins": {},
                 "custom_aggregators": {},
                 "custom_algorithm_aliases": {},
@@ -304,9 +302,8 @@ class ExperimentData(param.Parameterized):
                 "sorted_alg_names" : [],
                 "algorithms" : {},
                 "domains" : [],
-                "problems": {},
                 "num_problems" : 0,
-                "num_problems_by_domain" : {},
+                "problems_by_domain" : {},
                 "custom_min_wins": {},
                 "custom_aggregators": {},
                 "custom_algorithm_aliases": {}

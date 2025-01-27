@@ -15,8 +15,9 @@ from user_logger import UserLogger
 from custom_golden_template import GoldenTemplate
 
 logger = logging.getLogger("visualizer")
-pn.config.throttled = True
 global_user_logger = UserLogger()
+pn.config.throttled = True
+pn.extension('tabulator')
 
 def exception_handler(ex):
     global_user_logger.log(logging.ERROR, traceback.format_exc())
