@@ -200,18 +200,31 @@ class ExperimentData(param.Parameterized):
     def get_data(self, attributes, algorithms):
         logger.debug("start get_data")
         attr_names = []
-        if type(attributes) is NumericAttribute:
-            attr_names = attributes.name
-        elif isinstance(attributes, Iterable):
-            attr_names = [x.name for x in attributes if type(x) is NumericAttribute]
+        if not isinstance(attributes, Iterable):
+            attributes = [attributes]
+        for attribute in attributes:
+            name = attribute.name if type(attribute) is NumericAttribute else attribute
+            if name not in self.attributes:
+                self.user_logger.log(
+                    logging.WARNING,
+                    f"Encountered unknown attribute {name} when retrieving experiment data.")
+            else:
+                attr_names.append(name)
+
         alg_names = []
-        if type(algorithms) is Algorithm:
-            alg_names = algorithms.name
-        elif isinstance(algorithms, Iterable):
-            alg_names = [x.name for x in algorithms if type(x) is Algorithm]
+        if not isinstance(algorithms, Iterable):
+            algorithms = [algorithms]
+        for algorithm in algorithms:
+            if not isinstance(algorithm, Algorithm):
+                self.user_logger.log(
+                    logging.WARNING,
+                    f"Encountered unknown algorithm variable {algorithm} when retrieving experiment data.")
+            else:
+                alg_names.append(algorithm.name)
+        rename_dict = { self.get_algorithm_by_id(id).name: alias for id, alias in self.custom_algorithm_aliases.items() }
+        ret = self.data.loc[attr_names][alg_names].rename(columns=rename_dict)
         logger.debug("end get data")
-        # TODO: renaming is currently not working, because custom_algorithm_aliases uses indexes instead of names
-        return self.data.loc[attr_names][alg_names].rename(self.custom_algorithm_aliases)
+        return ret
 
 
     def get_numeric_attribute_by_id(self, id):

@@ -44,25 +44,16 @@ class ProblemTable(Report):
                 sizing_mode="stretch_width"
             ),
             pn.pane.HTML("<label>Algorithms</label>", margin=(5, 0, -5, 0)),
-            pn.widgets.MultiChoice.from_param(
+            pn.widgets.CrossSelector.from_param(
                 self.param.algorithms,
                 name="",
                 options = self.experiment_data.param.algorithms,
                 margin=(5, 0, 5, 0),
-                min_width=100,
-                sizing_mode="stretch_width"
+                width=400, #TODO: can we have a min_width with stretching? (Could not get it to work so far)
             )
         ])
 
 
-    # TODO see if we can do this with a reactive function instead.
-    @param.depends('domain', watch=True)
-    def update_problems(self):
-        logger.debug("start updating problem selection")
-        self.param_view[3].options = [] if not self.domain or self.domain == "" else self.experiment_data.problems_by_domain[self.domain]
-        logger.debug("end updating problem selection")
-
-    # TODO: styles seem to be updated in a delayed fashion again...
     def style_table_by_row(self, row):
         style = [""] * len(row)
         numeric_attribute = self.experiment_data.numeric_attributes.get(row.iloc[0], None)
@@ -85,6 +76,20 @@ class ProblemTable(Report):
         return style
 
 
+    @param.depends("experiment_data.algorithms", watch=True)
+    def select_all_algorithms(self):
+        self.param.algorithms.default = list(self.experiment_data.algorithms.values())
+        self.algorithms = self.param.algorithms.default
+
+
+    # TODO see if we can do this with a reactive function instead.
+    @param.depends('domain', watch=True)
+    def update_problems(self):
+        logger.debug("start updating problem selection")
+        self.param_view[3].options = [] if not self.domain or self.domain == "" else self.experiment_data.problems_by_domain[self.domain]
+        logger.debug("end updating problem selection")
+
+
     @param.depends("domain", "problem", "algorithms", watch=True)
     def update_data(self):
         logger.debug("start updating data")
@@ -92,17 +97,14 @@ class ProblemTable(Report):
             self.df = pd.DataFrame()
         else:
             # TODO: we need to get *all* attributes, not just the numeric ones (-> rewrite get_data)
-            tmp = self.experiment_data.get_data(self.experiment_data.numeric_attributes.values(),  self.algorithms)
+            tmp = self.experiment_data.get_data(self.experiment_data.attributes,  self.algorithms)
             self.df = tmp.xs((self.domain, self.problem), level=(1,2)).reset_index()
-        # TODO: avoid triggering df again (currently needed since table is only half updated otherwise:
-        # correct #cols but no data in last added
-        self.param.trigger("df")
         logger.debug("end updating data")
+
 
     @param.depends("df")
     def __panel__(self):
         logger.debug("running __panel__")
-        print(self.df)
         return self.data_view
 
 
@@ -120,9 +122,8 @@ class ProblemTable(Report):
             d['dom'] = self.domain
         if self.problem != self.param.domain.default:
             d['prob'] = self.problem
-        # TODO: enable getting and setting alg through config
-        # if self.algorithms != self.param.algorithms.default:
-        #     d['alg'] = self.algorithms
+        if self.algorithms != self.param.algorithms.default:
+            d['alg'] = [alg.id for alg in self.algorithms]
         return d
 
 
@@ -132,6 +133,6 @@ class ProblemTable(Report):
             update['domain'] = param_config_dict['dom']
         if 'prob' in param_config_dict:
             update['problem'] = param_config_dict['prob']
-        # if 'alg' in param_config_dict:
-        #     update['algorithms'] = param_config_dict['alg']
+        if 'alg' in param_config_dict:
+            update['algorithms'] = [self.experiment_data.get_algorithm_by_id(id) for id in param_config_dict['alg']]
         self.param.update(update)
