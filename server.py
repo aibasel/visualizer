@@ -18,6 +18,7 @@ logger = logging.getLogger("visualizer")
 global_user_logger = UserLogger()
 pn.config.throttled = True
 pn.extension('tabulator')
+pn.extension('floatpanel')
 
 def exception_handler(ex):
     global_user_logger.log(logging.ERROR, traceback.format_exc())

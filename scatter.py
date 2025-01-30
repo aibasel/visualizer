@@ -1,5 +1,6 @@
 from bokeh.plotting import figure
 from bokeh.models import HoverTool, TapTool, Legend, LegendItem, Span, Range1d
+from functools import partial # used for calling on_click_callback
 import logging
 import math
 import numpy as np
@@ -9,6 +10,7 @@ import param
 
 from algorithm_pairs_selector import AlgorithmPairsSelector
 from experiment_data import NumericAttribute, Algorithm
+from problem_table import ProblemTable
 from report import Report
 
 logger = logging.getLogger("visualizer.scatter")
@@ -47,6 +49,7 @@ class ScatterReport(Report):
         self.algorithm_pairs_selector = AlgorithmPairsSelector(self.experiment_data)
         self.param.algorithm_pairs = self.algorithm_pairs_selector.param.algorithm_pairs
 
+        self.data_view = pn.Column(sizing_mode="stretch_both")
         self.param_view.extend([
             pn.pane.HTML("<label>Attributes</label>", margin=(5, 0, -5, 0)),
             pn.Row(
@@ -129,8 +132,17 @@ class ScatterReport(Report):
                 sizing_mode="stretch_width"
             )
         ])
+        
 
-        self.plot = figure(active_scroll = "wheel_zoom", sizing_mode="stretch_both")
+    def on_click_callback(self, attr, old, new, df, source):
+        if new:
+            dom = df.iloc[new[0]]['domain']
+            prob = df.iloc[new[0]]['problem']
+            algs = [self.experiment_data.get_algorithm_by_id(x) for x in df.iloc[new[0]]['algs']]
+            source.selected.indices = []
+            problem_report = ProblemTable(self.experiment_data,
+                sizing_mode = "stretch_width", domain=dom, problem=prob, algorithms=algs)
+            self.add_popup(problem_report, name=f"{dom} - {prob}")
 
 
     @param.depends("x_attribute", "y_attribute",  "algorithm_pairs_selector.algorithm_pairs", "group_by", watch=True)
@@ -146,14 +158,12 @@ class ScatterReport(Report):
         # TODO: resetting the index leads to alphabetical order even for order by algorithm pair
         index_order = ['name', 'domain', 'problem'] if self.group_by == 'name' else ['domain', 'problem', 'name']
         for (xalg, yalg) in self.algorithm_pairs_selector.algorithm_pairs:
-            xcol = self.experiment_data.get_data(self.x_attribute, xalg)
-            ycol = self.experiment_data.get_data(self.y_attribute, yalg)
-            if len(xcol) != len(ycol):
-                continue
+            xcol = self.experiment_data.get_data(self.x_attribute, xalg).droplevel(0)[xalg.get_name()] # get_data returns a dataframe, but we only want the xalg column
+            ycol = self.experiment_data.get_data(self.y_attribute, yalg).droplevel(0)[yalg.get_name()]
             xalg_name = xalg.get_name()
             yalg_name = yalg.get_name()
             name = xalg_name if xalg == yalg else f"{xalg_name} vs {yalg_name}"
-            algs = [xalg_name] if xalg == yalg else [xalg_name, yalg_name]
+            algs = [xalg.id] if xalg == yalg else [xalg.id, yalg.id]
             new_frame = pd.DataFrame({'x':xcol, 'y':ycol, 'name':name, 'algs': [algs]*len(xcol)}).reset_index().set_index(index_order)
             frames.append(new_frame)
 
@@ -166,15 +176,16 @@ class ScatterReport(Report):
         logger.debug("end updating data")
 
 
-    @param.depends("df", "x_scale", "y_scale", "relative", "marker_size", "marker_fill_alpha", "legend_width")
-    def __panel__(self):
-        logger.debug("start __panel__")
-        self.plot = figure(
+    @param.depends("df", "x_scale", "y_scale", "relative", "marker_size", "marker_fill_alpha", "legend_width", watch=True)
+    def update_data_view(self):
+        logger.debug("start updating data view")
+        plot = figure(
             active_scroll = "wheel_zoom", sizing_mode="stretch_both",
             x_axis_type = self.x_scale, y_axis_type = self.y_scale)
         if self.df is None:
-            logger.debug("end __panel__ (empty)")
-            return self.plot
+            logger.debug("end updating data view (empty)")
+            self.data_view.objects = []
+            return
 
         df_copy = self.df.copy()
         df_copy = df_copy.replace(0.0, self.replace_zero)
@@ -183,17 +194,19 @@ class ScatterReport(Report):
         # Compute axis labels
         def get_axis_label(dim):
             other = "y" if dim == "x" else "x"
+            attribute = self.x_attribute if dim == "x" else self.y_attribute
             df_inf = df_copy.replace(np.nan, np.inf)
             dim_failed = df_inf[(df_inf[dim] == np.inf)]
             dim_failed_other_succ = dim_failed[(dim_failed[other] != np.inf)]
             dim_less = df_inf[(df_inf[dim]-df_inf[other] < 0)]
             dim_less_other_succ = dim_less[(dim_less[other] != np.inf)]
-            return (f"{dim}<{other}: {len(dim_less)}      "
+            return (f"{attribute.name}\n"
+                    f"{dim}<{other}: {len(dim_less)}      "
                     f"{dim}<{other}, {other} not failed: {len(dim_less_other_succ)}      "
                     f"{dim} failed: {len(dim_failed)}      "
                     f"{dim} failed,{other} not failed: {len(dim_failed_other_succ)}")
-        self.plot.xaxis.axis_label = get_axis_label("x")
-        self.plot.yaxis.axis_label = get_axis_label("y")
+        plot.xaxis.axis_label = get_axis_label("x")
+        plot.yaxis.axis_label = get_axis_label("y")
 
         # Compute failed values and replace NaN with failed.
         def get_failed(df, scale):
@@ -234,34 +247,37 @@ class ScatterReport(Report):
             self.user_logger.log(logging.WARNING,
                 "All points have been dropped due to non-positive values in log "
                 "plots or infinite values in relative y.")
-            return self.plot
+            self.data_view.objects = []
+            return
         elif size_diff > 0:
             self.user_logger.log(logging.INFO,
                 f"Dropped {size_diff} points due to non-positive values in log "
                 "plots or infinite values in relative y.")
 
-        self.plot.x_range = Range1d(df_copy[x].min()*0.9, df_copy[x].max()*1.1)
-        self.plot.y_range = Range1d(df_copy[y].min()*0.9, df_copy[y].max()*1.1)
+        plot.x_range = Range1d(df_copy[x].min()*0.9, df_copy[x].max()*1.1)
+        plot.y_range = Range1d(df_copy[y].min()*0.9, df_copy[y].max()*1.1)
 
         indices = df_copy.index.get_level_values(0).unique()
         legend_items = []
         for i, index in enumerate(indices):
-            p = self.plot.scatter(x=x, y=y, source=df_copy.loc[[index]].reset_index(),
+            p_df = df_copy.loc[[index]].reset_index()
+            p = plot.scatter(x=x, y=y, source=p_df,
                 line_color=COLORS[i%len(COLORS)], marker=MARKERS[i%len(MARKERS)],
                 fill_color=COLORS[i%len(COLORS)], fill_alpha=self.marker_fill_alpha,
                 size=self.marker_size, muted_fill_alpha = min(0.1,self.marker_fill_alpha))
-            legend_items.append(LegendItem(label=index, renderers = [self.plot.renderers[i]]))
+            p.data_source.selected.on_change('indices', partial(self.on_click_callback, df=p_df, source=p.data_source))
+            legend_items.append(LegendItem(label=index, renderers = [plot.renderers[i]]))
 
         # helper lines
-        self.plot.renderers.extend([Span(location=x_failed_val, dimension='height', line_color='red')])
-        self.plot.renderers.extend([Span(location=y_failed_val, dimension='width', line_color='red')])
-        self.plot.xaxis.major_label_overrides = {x_failed_val : "failed"}
-        self.plot.yaxis.major_label_overrides = {y_failed_val : "failed"}
+        plot.renderers.extend([Span(location=x_failed_val, dimension='height', line_color='red')])
+        plot.renderers.extend([Span(location=y_failed_val, dimension='width', line_color='red')])
+        plot.xaxis.major_label_overrides = {x_failed_val : "failed"}
+        plot.yaxis.major_label_overrides = {y_failed_val : "failed"}
         if self.relative:
-            self.plot.line(x=[df_copy[x].min()*0.9, x_failed_val], y=[1,1], color='black')
+            plot.line(x=[df_copy[x].min()*0.9, x_failed_val], y=[1,1], color='black')
         else:
             min_max = [min(df_copy[x].min()*0.9, df_copy[y].min()*0.9), max(x_failed_val, y_failed_val)]
-            self.plot.line(x=min_max, y=min_max, color='black')
+            plot.line(x=min_max, y=min_max, color='black')
 
 
         # compute appropriate number of columns and height of legend
@@ -281,11 +297,11 @@ class ScatterReport(Report):
         # legend
         legend = Legend(items = legend_items, location="center")
         legend.click_policy="mute"
-        self.plot.add_layout(legend, "below")
-        self.plot.legend.ncols = ncols
+        plot.add_layout(legend, "below")
+        plot.legend.ncols = ncols
 
         # hover info
-        self.plot.add_tools(HoverTool(tooltips=[
+        plot.add_tools(HoverTool(tooltips=[
             ('Domain', '@domain'),
             ('Problem', '@problem'),
             ('Name', '@name'),
@@ -293,9 +309,9 @@ class ScatterReport(Report):
             ('y', '@y'),
             ('yrel', '@yrel'),
             ]))
-        self.plot.add_tools(TapTool())
+        plot.add_tools(TapTool())
         logger.debug("end __panel__")
-        return self.plot
+        self.data_view.objects = [plot]
 
 
     # TODO: figure out if we can do this more directly

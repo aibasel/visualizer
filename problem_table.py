@@ -10,14 +10,17 @@ logger = logging.getLogger("visualizer.problem_table")
 class ProblemTable(Report):
     domain = param.Parameter(label="Domain", default="")
     problem = param.Parameter(label="Problem", default="")
-    algorithms = param.ListSelector()
+    algorithms = param.List(label="Algorithms", default=[])
 
     # internal parameters
     df = param.DataFrame(default=pd.DataFrame(), precedence=-1)
 
-
     def __init__(self, experiment_data, sizing_mode = "stretch_both", **params):
         super().__init__(experiment_data, **params)
+        # setting experiment_data in super triggers select_all_algorithms(),
+        # meaning we need to set it to the given parameter manually here
+        if "algorithms" in params:
+            self.algorithms = params["algorithms"]
 
         self.data_view = pn.widgets.Tabulator(
                 value=self.param.df, disabled = True, sortable=False, pagination="remote", page_size=10000, widths=250,
@@ -43,13 +46,16 @@ class ProblemTable(Report):
                 min_width=100,
                 sizing_mode="stretch_width"
             ),
-            pn.pane.HTML("<label>Algorithms</label>", margin=(5, 0, -5, 0)),
             pn.widgets.CrossSelector.from_param(
                 self.param.algorithms,
                 name="",
-                options = self.experiment_data.param.algorithms,
+                definition_order=False,
+                # we don't set possible options here but use "select_all_algorithms()" to update it
+                # (setting options here with 'options = self.experiment_data.param.algorithms'
+                # crashes when calling a FloatPanel Report)
+                #     options = self.experiment_data.param.algorithms,
                 margin=(5, 0, 5, 0),
-                width=400, #TODO: can we have a min_width with stretching? (Could not get it to work so far)
+                width=400 #TODO: can we have a min_width with stretching? (Could not get it to work so far)
             )
         ])
 
@@ -76,13 +82,19 @@ class ProblemTable(Report):
         return style
 
 
+    # TODO see if we can do the two functions below reactive functions instead.
     @param.depends("experiment_data.algorithms", watch=True)
     def select_all_algorithms(self):
+        logger.debug("experiment data changed triggered")
+        # TODO: can we do this nicer? The function can already trigger when
+        # calling super().__init__(), which sets experiment_data, and at this
+        # point param_view does not exist yet.
         self.param.algorithms.default = list(self.experiment_data.algorithms.values())
+        if hasattr(self, 'param_view'):
+            self.param_view[4].options = self.param.algorithms.default
         self.algorithms = self.param.algorithms.default
 
 
-    # TODO see if we can do this with a reactive function instead.
     @param.depends('domain', watch=True)
     def update_problems(self):
         logger.debug("start updating problem selection")
@@ -96,16 +108,9 @@ class ProblemTable(Report):
         if not self.problem or self.problem == "" or not self.algorithms:
             self.df = pd.DataFrame()
         else:
-            # TODO: we need to get *all* attributes, not just the numeric ones (-> rewrite get_data)
             tmp = self.experiment_data.get_data(self.experiment_data.attributes,  self.algorithms)
             self.df = tmp.xs((self.domain, self.problem), level=(1,2)).reset_index()
         logger.debug("end updating data")
-
-
-    @param.depends("df")
-    def __panel__(self):
-        logger.debug("running __panel__")
-        return self.data_view
 
 
     def get_watchers_for_param_config(self):
