@@ -4,7 +4,6 @@ from panel.viewable import Viewer
 import param
 
 from user_logger import UserLogger
-from experiment_data import ExperimentData
 
 logger = logging.getLogger("visualizer.report")
 

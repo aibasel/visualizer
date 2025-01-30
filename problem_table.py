@@ -85,7 +85,7 @@ class ProblemTable(Report):
     # TODO see if we can do the two functions below reactive functions instead.
     @param.depends("experiment_data.algorithms", watch=True)
     def select_all_algorithms(self):
-        logger.debug("experiment data changed triggered")
+        logger.debug("experiment data algorithms changed")
         # TODO: can we do this nicer? The function can already trigger when
         # calling super().__init__(), which sets experiment_data, and at this
         # point param_view does not exist yet.
