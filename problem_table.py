@@ -113,6 +113,12 @@ class ProblemTable(Report):
         logger.debug("end updating data")
 
 
+    # Trigger a redraw when min_wins settings change
+    @param.depends("experiment_data.custom_min_wins", watch=True)
+    def redraw(self):
+        self.param.trigger("df")
+
+
     def get_watchers_for_param_config(self):
         return [
             "domain",

@@ -39,6 +39,7 @@ class AggregateTable(Report):
     def __init__(self, experiment_data, **params):
         super().__init__(experiment_data, **params)
 
+        # ajaxLoader false is set to reduce blinking (https://github.com/olifolkerd/tabulator/issues/1027)
         self.data_view = pn.widgets.Tabulator(
             value=self.param.df.rx()[self.param.columns], disabled=True, show_index=False,
             pagination="remote", page_size=10000, frozen_columns=['Index'],
@@ -188,3 +189,9 @@ class AggregateTable(Report):
         """
         if hasattr(self, "data_view"):
             self.data_view.formatters = {x: HTMLTemplateFormatter(template=template) for x in self.df.columns}
+
+
+    # Trigger a redraw when min_wins settings change
+    @param.depends("experiment_data.custom_min_wins", watch=True)
+    def redraw(self):
+        self.param.trigger("df")

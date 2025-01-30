@@ -259,8 +259,8 @@ class ExperimentData(param.Parameterized):
 
         try:
             data = pd.read_json(properties, orient="index")
-            attributes = [x for x in data.columns if x not in ["algorithm", "domain", "problem"]]
-            sorted_num_attr_names = sorted([x for x in attributes if pd.api.types.is_numeric_dtype(data.dtypes[x])])
+            attributes = sorted([x for x in data.columns if x not in ["algorithm", "domain", "problem"]])
+            sorted_num_attr_names = [x for x in attributes if pd.api.types.is_numeric_dtype(data.dtypes[x])]
             numeric_attributes = {x: NumericAttribute(name=x, exp_data=self, id=i)
                 for i,x in enumerate(sorted_num_attr_names)}
             sorted_alg_names= sorted([x for x in data.algorithm.unique()])

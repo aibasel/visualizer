@@ -24,6 +24,7 @@ class Report(Viewer):
         self.data_view = pn.pane.Str("Placeholder data view")
         self.popup = pn.Column(height=0, width=0)
 
+
     def __panel__(self):
         logger.debug("start __panel__")
         self.popup.objects = [x for x in self.popup.objects if x.status != "closed"]
