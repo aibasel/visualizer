@@ -55,7 +55,7 @@ class AbsoluteTable(AggregateTable):
 
     @param.depends("algorithms", watch=True)
     def set_columns(self):
-        self.columns = ["Index"] + [alg.get_name() for alg in self.algorithms]
+        self.columns = ["Index"] + [alg.name for alg in self.algorithms]
 
 
     def get_algorithms(self):

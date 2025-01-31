@@ -235,6 +235,11 @@ class ExperimentData(param.Parameterized):
         name = self.custom_algorithm_aliases.get(id,self.sorted_alg_names[id])
         return self.algorithms[name]
 
+    def get_rename_dict(self):
+        return {
+            alg.name : alg.get_name() for alg in self.algorithms.values()
+        }
+
 
     @param.depends("properties_mode", watch=True)
     def switch_properties_mode(self):

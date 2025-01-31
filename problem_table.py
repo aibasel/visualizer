@@ -86,10 +86,10 @@ class ProblemTable(Report):
     @param.depends("experiment_data.algorithms", watch=True)
     def select_all_algorithms(self):
         logger.debug("experiment data algorithms changed")
+        self.param.algorithms.default = list(self.experiment_data.algorithms.values())
         # TODO: can we do this nicer? The function can already trigger when
         # calling super().__init__(), which sets experiment_data, and at this
         # point param_view does not exist yet.
-        self.param.algorithms.default = list(self.experiment_data.algorithms.values())
         if hasattr(self, 'param_view'):
             self.param_view[4].options = self.param.algorithms.default
         self.algorithms = self.param.algorithms.default
