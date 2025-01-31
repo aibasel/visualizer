@@ -63,19 +63,21 @@ class AbsoluteTable(AggregateTable):
 
 
     def get_watchers_for_param_config(self):
-        return [
+        return super().get_watchers_for_param_config() + [
             "algorithms",
-            "attributes",
-            "domains",
-            "precision"
         ]
 
 
     def get_param_config_dict(self):
-        d = {}
+        d = super().get_param_config_dict()
+        if self.algorithms != self.param.algorithms.default:
+            d['alg'] = [alg.id for alg in self.algorithms]
         return d
 
 
     def set_params_from_param_config_dict(self, param_config_dict):
+        super().set_params_from_param_config_dict(param_config_dict)
         update = {}
+        if 'alg' in param_config_dict:
+            update['algorithms'] = [self.experiment_data.get_algorithm_by_id(id) for id in param_config_dict['alg']]
         self.param.update(update)

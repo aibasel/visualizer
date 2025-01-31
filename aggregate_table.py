@@ -292,3 +292,33 @@ class AggregateTable(Report):
     @param.depends("df", "columns", "experiment_data.custom_min_wins", "experiment_data.custom_algorithm_aliases", watch=True)
     def redraw(self):
         self.view_df = self.df[self.columns].rename(columns=self.experiment_data.get_rename_dict())
+
+
+    def get_watchers_for_param_config(self):
+        return [
+            "attributes",
+            "domains",
+            "precision"
+        ]
+
+
+    def get_param_config_dict(self):
+        d = {}
+        if self.attributes != self.param.attributes.default:
+            d['attrs'] = [self.experiment_data.get_attribute_id(a) for a in  self.attributes]
+        if self.domains != self.param.domains.default:
+            d['doms'] = [self.experiment_data.get_domain_id(d) for d in self.domains]
+        if self.precision != self.param.precision.default:
+            d['prec'] = self.precision
+        return d
+
+
+    def set_params_from_param_config_dict(self, param_config_dict):
+        update = {}
+        if 'attrs' in param_config_dict:
+            update['attributes'] = [self.experiment_data.get_attribute_by_id(id) for id in param_config_dict['attrs']]
+        if 'doms' in param_config_dict:
+            update['domains'] = [self.experiment_data.get_domain_by_id(id) for id in param_config_dict['doms']]
+        if 'prec' in param_config_dict:
+            update['precision'] = param_config_dict['prec']
+        self.param.update(update)

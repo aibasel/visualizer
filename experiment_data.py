@@ -235,6 +235,19 @@ class ExperimentData(param.Parameterized):
         name = self.custom_algorithm_aliases.get(id,self.sorted_alg_names[id])
         return self.algorithms[name]
 
+    # NOTE: These methods assume that attributes and domains are sorted!
+    def get_attribute_by_id(self, id):
+        return self.attributes[id]
+
+    def get_attribute_id(self, attribute):
+        return self.attributes.index(attribute)
+
+    def get_domain_by_id(self, id):
+        return self.domains[id]
+
+    def get_domain_id(self, domain):
+        return self.domains.index(domain)
+
     def get_rename_dict(self):
         return {
             alg.name : alg.get_name() for alg in self.algorithms.values()
