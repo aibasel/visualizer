@@ -125,7 +125,7 @@ class ExperimentData(param.Parameterized):
     properties_file = param.FileSelector()
 
     # internal parameters
-    data = param.DataFrame(precedence=-1)
+    data = param.DataFrame(precedence=-1, default=pd.DataFrame())
     attributes = param.List(default=[], precedence=-1)
     sorted_num_attr_names = param.List(default=[], precedence=-1)
     numeric_attributes = param.Dict(default={}, precedence=-1) # values are NumericAttribute objects
