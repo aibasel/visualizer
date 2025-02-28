@@ -1,29 +1,23 @@
 from bokeh.models.widgets.tables import HTMLTemplateFormatter
 import logging
-import numpy as np
 import param
 import pandas as pd
 import panel as pn
 from scipy import stats
 
+from custom_tabulator import CustomTabulator
 from problem_table import ProblemTable
 from report import Report
 
 
 logger = logging.getLogger("visualizer.aggregate_table")
 
+# TODO: current problems
+# 1) style still causes a lot of jumping around
+# 2) when forcing a redraw by triggering the data_view value, the table might jump to the top (e.g. when changing min_wins)
+# 3) TODOs in code (queued and precedence on watchers / manual triggering attributes & domains in updated exp_data)
+
 class AggregateTable(Report):
-    # widget parameters
-    attributes = param.ListSelector(label="Attributes", default=[])
-    domains = param.ListSelector(label="Domains", default=[])
-    precision = param.Integer(label="Floating point precision", default=3, bounds=(0,15))
-
-    # internal parameters
-    df = param.DataFrame(precedence=-1, default=pd.DataFrame())
-    view_df = param.DataFrame(precedence=-1, default=pd.DataFrame())
-    unfolded = param.Dict(precedence=-1, default={})
-    columns = param.List(precedence=-1, default=[])
-
     stylesheet = """
             .tabulator-row.tabulator-selected .tabulator-cell{
                 background-color: #9abcea !important;
@@ -38,26 +32,34 @@ class AggregateTable(Report):
             }
         """
 
+    # widget parameters
+    algorithms = param.ListSelector(default=[])
+    attributes = param.ListSelector(default=[])
+    domains = param.ListSelector(default=[])
+    precision = param.Integer(default=3, bounds=(0,15))
+
+    # internal parameters
+    # stores which attributes are unfolded (the keys, and for each
+    # unfolded attribute which domains are unfolded (the values)
+    unfolded = param.Dict(precedence=-1, default={})
+    # for these attributes, their overall aggregates are current
+    aggregated_attributes = param.List(default=[]) # TODO: Ideally we would have a set...
+    # these domain aggregates (=value, set of domains) of attribute key are current
+    aggregated_attribute_domains = param.Dict(default={})
+    recompute_aggregate_needed = param.Event()
+
 
     def __init__(self, experiment_data, **params):
         super().__init__(experiment_data, **params)
 
-        # The following two variables store which aggregates are currently
-        # correctly computed. Every time relevant parameters or visible rows
-        # change, they are first updated and then the compute_needed_aggregates()
-        # (re)computes those aggregates which are visible and out of date.
-        self.attributes_aggregated = set()
-        self.domains_aggregated = dict()
-        # stores for which aggregator function the above two variables store correct data
-        self.used_aggregators = dict()
-
         # ajaxLoader false is set to reduce blinking (https://github.com/olifolkerd/tabulator/issues/1027)
-        self.data_view = pn.widgets.Tabulator(
-            value=self.param.view_df, disabled=True, show_index=False,
+        self.data_view = CustomTabulator(
+            value=pd.DataFrame(), disabled=True, show_index=False,
             pagination="remote", page_size=10000, frozen_columns=['Index'],
             sizing_mode='stretch_both', configuration={"ajaxLoader": "False"},
-            sortable=False, stylesheets=[AggregateTable.stylesheet]
+            sortable=False,  stylesheets=[AggregateTable.stylesheet]
         )
+        self.used_aggregators = dict()
 
         def filter(df, unfolded, attributes, domains):
             if df.empty:
@@ -81,14 +83,12 @@ class AggregateTable(Report):
             filter, unfolded=self.param.unfolded, attributes=self.param.attributes,
             domains=self.param.domains
         ))
-        self.data_view.style.apply(func=self.style_table_by_row, axis=1)
         self.data_view.on_click(self.on_click_callback)
 
         self.param_view.extend([
             pn.widgets.CrossSelector.from_param(
                 self.param.attributes,
                 name="",
-                definition_order=False,
                 options = self.experiment_data.param.attributes,
                 margin=(5, 0, 5, 0),
                 width=400
@@ -97,7 +97,6 @@ class AggregateTable(Report):
             pn.widgets.CrossSelector.from_param(
                 self.param.domains,
                 name="",
-                definition_order=False,
                 options = self.experiment_data.param.domains,
                 margin=(5, 0, 5, 0),
                 width=400
@@ -110,6 +109,16 @@ class AggregateTable(Report):
                 sizing_mode="stretch_width"
             ),
         ])
+
+        # TODO: rethink if the queued and precendence is really how we want it
+        self.param.watch(self.algorithms_updated, ["algorithms"], queued=True, precedence=1)
+        self.param.watch(self.attributes_updated, ["attributes"], queued=True, precedence=2)
+        self.param.watch(self.domains_updated, ["domains"], queued=True, precedence=3)
+        self.experiment_data.param.watch(self.aggregators_changed, ["custom_aggregators"], queued=True, precedence=4)
+        self.param.watch(self.compute_needed_aggregates, ["recompute_aggregate_needed"], queued=True, precedence=5)
+
+        self.experiment_data.param.watch(self.algorithm_aliases_changed, ["custom_algorithm_aliases"])
+        self.experiment_data.param.watch(self.min_wins_changed, ["custom_min_wins"])
 
 
     def style_table_by_row(self, row):
@@ -125,150 +134,187 @@ class AggregateTable(Report):
         return style
 
 
-    def get_algorithms(self):
-        logger.error("Child class did not implement get_algorithms()!")
-        return []
-
     def on_click_callback(self, e):
-        row = self.df.iloc[e.row]
+        row = self.data_view.value.iloc[e.row]
         attribute, domain, problem = row.name[0:3]
 
         # clicked on concrete problem -> open problem wise report
         if problem != "--":
             problem_report = ProblemTable(
                 self.experiment_data, sizing_mode="stretch_width",
-                domain=domain, problem=problem, algorithms=self.get_algorithms())
+                domain=domain, problem=problem, algorithms=self.algorithms)
             self.add_popup(problem_report, name=f"{domain} - {problem}")
             return
 
-        # clicked on domain aggregate -> (un)fold that domain for that attribute
-        if domain != "--":
+        if domain != "--": # clicked on domain aggregate
             if domain in self.unfolded[attribute]:
                 self.unfolded[attribute].remove(domain)
             else:
                 self.unfolded[attribute].append(domain)
-            self.param.trigger("unfolded")
-
-        # clicked on attribute aggregate -> (un)fold that attribute
-        else:
+        else: # clicked on attribute aggregate
             if attribute in self.unfolded:
                 self.unfolded.pop(attribute)
             else:
                 self.unfolded[attribute] = []
-                self.compute_needed_aggregates()
-            self.param.trigger("unfolded")
+        self.param.trigger("recompute_aggregate_needed")
 
 
-    def compute_needed_aggregates(self):
+    def update_data_view_table(self, patch_dict):
+        new_patch_dict = dict()
+        new_patch_dict["Index"] = patch_dict["Index"]
+        for col in self.data_view.value.columns[1:]:
+            alg = next(x for x in self.experiment_data.algorithms.values() if x.get_name() == col)
+            new_patch_dict[col] = patch_dict[alg]
+        self.data_view.patch(new_patch_dict)
+        self.data_view.param.trigger("value")
+
+    def compute_needed_aggregates(self, *events):
         logger.debug("computing needed aggregates")
-        def aggregate(df, aggregator):
-            # Since gmean is not a built-in function we need to set the variable to the actual function here.
-            # Furthermore, since gmean cannot deal with 0, we replace it with a very small positive value.
+        if not isinstance(self.experiment_data.data, pd.DataFrame):
+            return
+        patch_dict = {a: [] for a in self.algorithms} | {"Index": []}
+
+        def update_patch_dict(df, row, index_string, aggregator):
+            patch_dict["Index"].append((row, index_string % len(df)))
+            # Since gmean is not a built-in function we need to set the variable
+            # to the actual function here. Furthermore, since gmean cannot deal
+            # with 0, we replace it with a very small positive value.
             if aggregator == "gmean":
                 aggregator = stats.gmean
                 df = df.replace(0, 0.000001)
-            return df.agg(aggregator)
+            aggregates = df.agg(aggregator)
+            for alg in self.algorithms:
+                patch_dict[alg].append((row, aggregates[alg.name]))
 
-        if not isinstance(self.experiment_data.data, pd.DataFrame):
-            return
+        def get_rows_with_index_value(df, value):
+            return (df.loc[value] if value in df.index
+                    else pd.DataFrame({}, columns=df.columns))
 
         # we want to consider all rows where all selected columns have a value
-        base_data = self.experiment_data.data[[alg.name for alg in self.get_algorithms()]].dropna()
+        base_data = self.experiment_data.data[[a.name for a in self.algorithms]].dropna()
 
         for attribute in self.experiment_data.numeric_attributes.values():
             if attribute.name not in self.attributes:
                 # If the attribute is currently not shown, don't compute anything
                 continue
 
-            attribute_data = pd.DataFrame(columns=base_data.columns)
-            if attribute.name in base_data.index:
-                attribute_data = base_data.loc[attribute.name]
-                # The aggregate only considers the domains that are currently shown
+            attribute_data = get_rows_with_index_value(base_data, attribute.name)
+            if len(attribute_data) > 0:
+                # remove domains that are currently not considered
                 attribute_data = attribute_data.loc[attribute_data.index.get_level_values('domain').isin(self.domains)]
                 attribute_data = attribute_data.apply(pd.to_numeric, errors='coerce')
 
-            # Compute the overall aggregate for this attribute if it is not current
-            if attribute.name not in self.attributes_aggregated:
-                num_problems = len(attribute_data.index)
-                new_aggregates = aggregate(attribute_data, attribute.aggregator)
-                # TODO: can we do this nicer? mean and gmean already report NaN for empty dataframes
-                if num_problems == 0:
-                    new_aggregates = new_aggregates.replace(0, np.NaN)
-                index_string = f"{attribute.name} ({attribute.aggregator}, {num_problems}/{self.experiment_data.num_problems})"
-                self.df.loc[(attribute.name, "--", "--")] = pd.concat([pd.Series([index_string], index=["Index"]), new_aggregates])
-                self.attributes_aggregated.add(attribute.name)
+            # Compute the overall attribute aggregate if it is not current.
+            if attribute.name not in self.aggregated_attributes:
+                row_index = (attribute.name, "--", "--")
+                num_probs = sum([len(self.experiment_data.problems_by_domain[d]) for d in self.domains])
+                index_string = f"{attribute.name} ({attribute.aggregator}, %s/{num_probs})"
+                patch_dict["Index"].append((row_index, index_string))
+                update_patch_dict(
+                    attribute_data, row_index, index_string, attribute.aggregator)
+                self.aggregated_attributes.append(attribute.name)
 
+            # For unfolded attributes we might need to update domain aggregates.
             if attribute.name in self.unfolded:
-                relevant_domains = [d for d in self.domains if d not in self.domains_aggregated[attribute.name]]
-                if not relevant_domains:
-                    break
-                # Represents the slice of all domain aggregate rows, but without the Index column.
-                rows, cols = (attribute.name, slice(relevant_domains[0], relevant_domains[-1]), "--"), self.df.columns[1:]
-                # Clear the slice and apply combine_first (this way, the newly aggregated data is taken wherever it exists).
-                self.df.loc[rows, cols] = np.NaN
-                self.df.loc[rows, cols] = self.df.loc[rows, cols].combine_first(attribute_data.groupby(level=0).agg(attribute.aggregator))
+                relevant_domains = [d for d in self.domains if d not in self.aggregated_attribute_domains[attribute.name]]
                 for domain in relevant_domains:
-                    num_problems = len(self.experiment_data.problems_by_domain[domain])
-                    num_aggregated = 0 if domain not in attribute_data.index.get_level_values(0) else len(attribute_data.loc[domain].index)
-                    self.df.loc[(attribute.name, domain, "--"),'Index'] = f"{domain} ({num_aggregated}/{num_problems})"
-                self.domains_aggregated[attribute.name].update(relevant_domains)
-        self.redraw()
-        logger.debug("done computing needed aggregates")
+                    domain_data = get_rows_with_index_value(attribute_data, domain)
+                    row_index = (attribute.name, domain, "--")
+                    index_string = f"{domain} (%s/{len(self.experiment_data.problems_by_domain[domain])})"
+                    update_patch_dict(
+                        domain_data, row_index, index_string, attribute.aggregator)
+                self.aggregated_attribute_domains[attribute.name].update(relevant_domains)
+        self.update_data_view_table(patch_dict)
 
-
-    @param.depends("columns", watch=True)
-    def columns_updated(self):
-        self.attributes_aggregated = set()
-        self.domains_aggregated = {a: set() for a in self.domains_aggregated.keys()}
-        self.compute_needed_aggregates()
-
-    @param.depends("attributes", watch=True)
-    def attributes_updated(self):
-        self.compute_needed_aggregates()
-
-    @param.depends("domains", watch=True)
-    def domains_updated(self):
-        self.attributes_aggregated = set()
-        self.compute_needed_aggregates()
-
-    @param.depends("experiment_data.custom_aggregators", watch=True)
-    def aggregators_changed(self):
-        for attribute in self.experiment_data.numeric_attributes.values():
-            if self.used_aggregators.get(attribute.name) != attribute.aggregator:
-                self.attributes_aggregated.discard(attribute.name)
-                self.domains_aggregated[attribute.name] = set()
-                self.used_aggregators[attribute.name] = attribute.aggregator
-        self.compute_needed_aggregates()
 
     @param.depends("experiment_data.data", watch=True)
-    def new_experiment_data(self):
-        logger.debug("experiment data changed")
-        self.param.domains.default = list(self.experiment_data.domains)
-        self.param.attributes.default = list(self.experiment_data.attributes)
+    def experiment_data_updated(self):
+        logger.debug("experiment data was updated")
+        if not hasattr(self, "data_view") or isinstance(self.data_view, pn.pane.Str):
+            return
 
-        self.domains_aggregated = {a: set() for a in self.experiment_data.numeric_attributes.keys()}
-        self.used_aggregators = {name: a.aggregator for name, a in self.experiment_data.numeric_attributes.items()}
+        self.param.algorithms.default = list(self.experiment_data.algorithms.values())
+        self.param.attributes.default = self.experiment_data.attributes
+        self.param.domains.default = self.experiment_data.domains
 
         # Build the rows for the aggregated values such that we later just overwrite values rather than concatenate.
         mi = pd.MultiIndex.from_product([self.experiment_data.attributes, ["--", *self.experiment_data.domains], ["--"]],
                                         names = ["attribute", "domain", "problem"])
-        aggregated_data_skeleton = pd.DataFrame(data = "", index = mi, columns = self.experiment_data.algorithms)
-        # Combine experiment data and aggregated data skeleton.
-        new_df = pd.concat([self.experiment_data.data, aggregated_data_skeleton]).sort_index()
+        aggregated_data_skeleton = pd.DataFrame(data = "", index = mi, columns = [])
+        # Combine experiment data and aggregated data skeleton indices into an empty dataframe.
+        new_df = pd.concat([self.experiment_data.data[[]], aggregated_data_skeleton]).sort_index()
 
         # Add Index column (solely used in the visualization).
         pseudoindex = [x[0] if x[1]=="--" else (x[1] if x[2] == "--" else x[2]) for x in new_df.index]
         new_df.insert(0, "Index", pseudoindex)
 
+        self.data_view.value = new_df
+
+        self.used_aggregators = { a.name: a.aggregator for a in self.experiment_data.numeric_attributes.values()}
+
+        logger.debug("experiment data updated: updating params")
         self.param.update({
-            "domains": self.param.domains.default,
+            "algorithms": self.param.algorithms.default,
             "attributes": self.param.attributes.default,
-            "columns": [],
-            "df": new_df
+            "domains": self.param.domains.default,
+            "unfolded": {}
+        })
+        # TODO: we need to trigger attributes and domains because otherwise the widgets shows them as none selected - why?
+        self.param.trigger("attributes")
+        self.param.trigger("domains")
+        logger.debug("experiment data updated: done updating params")
+
+
+    def algorithms_updated(self, event):
+        logger.debug("algorithms were updated")
+        self.data_view.value.drop(self.data_view.value.columns[1:], axis=1, inplace=True)
+        self.data_view.value[[x.get_name() for x in self.algorithms]] = self.experiment_data.data[[x.name for x in self.algorithms]]
+        self.data_view.param.trigger("value")
+        # new_table = self.data_view.value[["Index"]].copy()
+        # new_table[[x.get_name() for x in self.algorithms]] = self.experiment_data.data[[x.name for x in self.algorithms]]
+        # self.data_view.value = new_table
+
+        self.param.update({
+            "aggregated_attributes": [],
+            "aggregated_attribute_domains": {a.name: set() for a in self.experiment_data.numeric_attributes.values()},
+            "recompute_aggregate_needed" : True
         })
 
 
-    @param.depends("precision", "view_df", watch=True)
+    def attributes_updated(self, event):
+        logger.debug("attributes were updated")
+        # Updating attributes does not invalidate aggregates, but we might need
+        # to (re-)compute new ones.
+        self.param.trigger("recompute_aggregate_needed")
+
+
+    def domains_updated(self, event):
+        logger.debug("domains were updated")
+        self.aggregated_attributes = []
+        self.param.trigger("recompute_aggregate_needed")
+
+
+    def aggregators_changed(self, event):
+        logger.debug("custom aggregators were updated")
+        for attribute in self.experiment_data.numeric_attributes.values():
+            if self.used_aggregators.get(attribute.name) != attribute.aggregator:
+                self.used_aggregators[attribute.name] = attribute.aggregator
+                self.aggregated_attributes.remove(attribute.name)
+                self.aggregated_attribute_domains[attribute.name] = set()
+        self.param.trigger("recompute_aggregate_needed")
+
+
+    def algorithm_aliases_changed(self, event):
+        logger.debug("custom algorithm aliases changed")
+        self.data_view.value.columns= ["Index"] + [x.get_name() for x in self.algorithms]
+        self.data_view.param.trigger("value")
+
+    def min_wins_changed(self, event):
+        logger.debug("custom min wins changed")
+        self.data_view.param.trigger("value")
+
+
+    @param.depends("precision", "algorithms", "experiment_data.custom_aggregators", watch=True)
     def set_formatter_for_precision(self):
         template = f"""
           <%= function formatnumber() {{
@@ -285,13 +331,7 @@ class AggregateTable(Report):
           }}() %>
         """
         if hasattr(self, "data_view"):
-            self.data_view.formatters = {x: HTMLTemplateFormatter(template=template) for x in self.view_df.columns}
-
-# TODO it's not really nice to add min_wins here since it doesn't directly get used in the funciton,
-# but otherwise the style will not be applied right away when min_wins changes
-    @param.depends("df", "columns", "experiment_data.custom_min_wins", "experiment_data.custom_algorithm_aliases", watch=True)
-    def redraw(self):
-        self.view_df = self.df[self.columns].rename(columns=self.experiment_data.get_rename_dict())
+            self.data_view.formatters = {x.get_name()   : HTMLTemplateFormatter(template=template) for x in self.algorithms}
 
 
     def get_watchers_for_param_config(self):
@@ -304,9 +344,9 @@ class AggregateTable(Report):
 
     def get_param_config_dict(self):
         d = {}
-        if self.attributes != self.param.attributes.default:
+        if set(self.attributes) != set(self.param.attributes.default):
             d['attrs'] = [self.experiment_data.get_attribute_id(a) for a in  self.attributes]
-        if self.domains != self.param.domains.default:
+        if set(self.domains) != set(self.param.domains.default):
             d['doms'] = [self.experiment_data.get_domain_id(d) for d in self.domains]
         if self.precision != self.param.precision.default:
             d['prec'] = self.precision
@@ -321,4 +361,5 @@ class AggregateTable(Report):
             update['domains'] = [self.experiment_data.get_domain_by_id(id) for id in param_config_dict['doms']]
         if 'prec' in param_config_dict:
             update['precision'] = param_config_dict['prec']
+        print(update)
         self.param.update(update)

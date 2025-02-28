@@ -8,7 +8,6 @@ from aggregate_table import AggregateTable
 logger = logging.getLogger("visualizer.absolute_table")
 
 class AbsoluteTable(AggregateTable):
-    algorithms = param.ListSelector(label="Algorithms", default=[])
 
     def __init__(self, **params):
         super().__init__(**params)
@@ -21,12 +20,11 @@ class AbsoluteTable(AggregateTable):
             width=400
             # TODO: can we have a min_width with stretching? (Could not get it to work so far)
         ))
+        self.data_view.style.apply(func=self.style_table_by_row, axis=1)
 
 
     def style_table_by_row(self, row):
         style = super().style_table_by_row(row)
-        attribute = row.name[0]
-
         numeric_attribute = self.experiment_data.numeric_attributes.get(row.name[0], None)
         if numeric_attribute is None:  # the attribute is not a numeric attribute
             return style
@@ -45,21 +43,6 @@ class AbsoluteTable(AggregateTable):
                 blue = ((1-percentage)*255).astype(int)
                 style[i] = style[i]+ "color: #00{:02x}{:02x};".format(green, blue)
         return style
-
-
-    @param.depends("experiment_data.algorithms", watch=True)
-    def select_all_algorithms(self):
-        self.param.algorithms.default = list(self.experiment_data.algorithms.values())
-        self.algorithms = self.param.algorithms.default
-
-
-    @param.depends("algorithms", watch=True)
-    def set_columns(self):
-        self.columns = ["Index"] + [alg.name for alg in self.algorithms]
-
-
-    def get_algorithms(self):
-        return self.algorithms
 
 
     def get_watchers_for_param_config(self):

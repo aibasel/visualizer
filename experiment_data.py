@@ -321,7 +321,7 @@ class ExperimentData(param.Parameterized):
 
             self.user_logger.log(logging.INFO, "finished reading in properties")
 
-        except Exception as e:
+        except ValueError as e:
             self.numeric_attr_views.objects = self.numeric_attr_views.objects[0:3]
             self.algorithm_views.objects = self.algorithm_views.objects[0:2]
 

@@ -1,6 +1,5 @@
 import panel as pn
 
-#
 class CustomTabulator(pn.widgets.Tabulator):
     def _update_style(self, recompute=True):
         super()._update_style(recompute=recompute)
