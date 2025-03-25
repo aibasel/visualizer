@@ -1,5 +1,4 @@
 import logging
-import param
 import pandas as pd
 import panel as pn
 
@@ -45,6 +44,26 @@ class AbsoluteTable(AggregateTable):
         return style
 
 
+    def get_algorithms_on_new_experiment_data(self):
+        logger.debug("getting algorithms on new experiment data")
+        return self.param.algorithms.default
+
+
+    def update_data_view_table(self, patch_df):
+        logger.debug("updating data view table")
+        # new_df = patch_df[["Index"]]
+        # new_df[[x.get_name() for x in self.algorithms]] = patch_df[[x.name for x in self.algorithms]]
+        self.data_view.patch(patch_df)
+        # self.data_view.param.trigger("value")
+
+
+    def algorithms_updated(self, event):
+        self.data_view.value.drop(self.data_view.value.columns[1:], axis=1, inplace=True)
+        self.data_view.value[[x.get_name() for x in self.algorithms]] = self.experiment_data.data[[x.name for x in self.algorithms]]
+        self.data_view.param.trigger("value")
+        super().algorithms_updated(event)
+
+
     def get_watchers_for_param_config(self):
         return super().get_watchers_for_param_config() + [
             "algorithms",
@@ -58,9 +77,9 @@ class AbsoluteTable(AggregateTable):
         return d
 
 
-    def set_params_from_param_config_dict(self, param_config_dict):
-        super().set_params_from_param_config_dict(param_config_dict)
+    def set_params_from_param_config_dict(self, d):
+        super().set_params_from_param_config_dict(d)
         update = {}
-        if 'alg' in param_config_dict:
-            update['algorithms'] = [self.experiment_data.get_algorithm_by_id(id) for id in param_config_dict['alg']]
+        if 'alg' in d:
+            update['algorithms'] = [self.experiment_data.get_algorithm_by_id(id) for id in d['alg']]
         self.param.update(update)

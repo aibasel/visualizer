@@ -47,7 +47,6 @@ class ScatterReport(Report):
         super().__init__(experiment_data, **params)
 
         self.algorithm_pairs_selector = AlgorithmPairsSelector(self.experiment_data)
-        self.param.algorithm_pairs = self.algorithm_pairs_selector.param.algorithm_pairs
 
         self.data_view = pn.Column(sizing_mode="stretch_both")
         self.param_view.extend([

@@ -75,8 +75,6 @@ class AggregateTable(Report):
                     indices += [(a, d, p) for p in
                                 self.experiment_data.problems_by_domain[d]]
             indices.sort()
-            max_length = max([1] + [len(x) for x in df.loc[indices]['Index']])
-            self.data_view.widths = {'Index': 10 + max_length * 7}
             return df.loc[indices]
 
         self.data_view.add_filter(pn.bind(
@@ -111,11 +109,11 @@ class AggregateTable(Report):
         ])
 
         # TODO: rethink if the queued and precendence is really how we want it
-        self.param.watch(self.algorithms_updated, ["algorithms"], queued=True, precedence=1)
-        self.param.watch(self.attributes_updated, ["attributes"], queued=True, precedence=2)
-        self.param.watch(self.domains_updated, ["domains"], queued=True, precedence=3)
-        self.experiment_data.param.watch(self.aggregators_changed, ["custom_aggregators"], queued=True, precedence=4)
-        self.param.watch(self.compute_needed_aggregates, ["recompute_aggregate_needed"], queued=True, precedence=5)
+        self.param.watch(self.algorithms_updated, ["algorithms"], precedence=1)
+        self.param.watch(self.attributes_updated, ["attributes"], precedence=2)
+        self.param.watch(self.domains_updated, ["domains"], precedence=3)
+        self.experiment_data.param.watch(self.aggregators_changed, ["custom_aggregators"], precedence=4)
+        self.param.watch(self.compute_needed_aggregates, ["recompute_aggregate_needed"], precedence=5)
 
         self.experiment_data.param.watch(self.algorithm_aliases_changed, ["custom_algorithm_aliases"])
         self.experiment_data.param.watch(self.min_wins_changed, ["custom_min_wins"])
@@ -159,32 +157,26 @@ class AggregateTable(Report):
         self.param.trigger("recompute_aggregate_needed")
 
 
-    def update_data_view_table(self, patch_dict):
-        new_patch_dict = dict()
-        new_patch_dict["Index"] = patch_dict["Index"]
-        for col in self.data_view.value.columns[1:]:
-            alg = next(x for x in self.experiment_data.algorithms.values() if x.get_name() == col)
-            new_patch_dict[col] = patch_dict[alg]
-        self.data_view.patch(new_patch_dict)
-        self.data_view.param.trigger("value")
+    def update_data_view_table(self, patch_df):
+        raise NotImplementedError
 
     def compute_needed_aggregates(self, *events):
         logger.debug("computing needed aggregates")
         if not isinstance(self.experiment_data.data, pd.DataFrame):
             return
-        patch_dict = {a: [] for a in self.algorithms} | {"Index": []}
+        mi = pd.MultiIndex.from_tuples([], names=self.data_view.value.index.names)
+        cols = {"Index": pd.Series(dtype='object')} | {a.name: pd.Series(dtype='object') for a in self.algorithms}
+        patch_df = pd.DataFrame(cols, index = mi)
 
         def update_patch_dict(df, row, index_string, aggregator):
-            patch_dict["Index"].append((row, index_string % len(df)))
             # Since gmean is not a built-in function we need to set the variable
             # to the actual function here. Furthermore, since gmean cannot deal
             # with 0, we replace it with a very small positive value.
             if aggregator == "gmean":
                 aggregator = stats.gmean
                 df = df.replace(0, 0.000001)
-            aggregates = df.agg(aggregator)
-            for alg in self.algorithms:
-                patch_dict[alg].append((row, aggregates[alg.name]))
+            patch_df.loc[row] = df.agg(aggregator)
+            patch_df.at[row,"Index"] = index_string % str(len(df))
 
         def get_rows_with_index_value(df, value):
             return (df.loc[value] if value in df.index
@@ -209,7 +201,6 @@ class AggregateTable(Report):
                 row_index = (attribute.name, "--", "--")
                 num_probs = sum([len(self.experiment_data.problems_by_domain[d]) for d in self.domains])
                 index_string = f"{attribute.name} ({attribute.aggregator}, %s/{num_probs})"
-                patch_dict["Index"].append((row_index, index_string))
                 update_patch_dict(
                     attribute_data, row_index, index_string, attribute.aggregator)
                 self.aggregated_attributes.append(attribute.name)
@@ -224,7 +215,11 @@ class AggregateTable(Report):
                     update_patch_dict(
                         domain_data, row_index, index_string, attribute.aggregator)
                 self.aggregated_attribute_domains[attribute.name].update(relevant_domains)
-        self.update_data_view_table(patch_dict)
+        self.update_data_view_table(patch_df)
+
+
+    def get_algorithms_on_new_experiment_data(self):
+        raise NotImplementedError("get_algorithms_on_new_experiment_data not implemented")
 
 
     @param.depends("experiment_data.data", watch=True)
@@ -252,9 +247,8 @@ class AggregateTable(Report):
 
         self.used_aggregators = { a.name: a.aggregator for a in self.experiment_data.numeric_attributes.values()}
 
-        logger.debug("experiment data updated: updating params")
         self.param.update({
-            "algorithms": self.param.algorithms.default,
+            "algorithms": self.get_algorithms_on_new_experiment_data(),
             "attributes": self.param.attributes.default,
             "domains": self.param.domains.default,
             "unfolded": {}
@@ -262,23 +256,20 @@ class AggregateTable(Report):
         # TODO: we need to trigger attributes and domains because otherwise the widgets shows them as none selected - why?
         self.param.trigger("attributes")
         self.param.trigger("domains")
-        logger.debug("experiment data updated: done updating params")
 
 
     def algorithms_updated(self, event):
         logger.debug("algorithms were updated")
-        self.data_view.value.drop(self.data_view.value.columns[1:], axis=1, inplace=True)
-        self.data_view.value[[x.get_name() for x in self.algorithms]] = self.experiment_data.data[[x.name for x in self.algorithms]]
-        self.data_view.param.trigger("value")
-        # new_table = self.data_view.value[["Index"]].copy()
-        # new_table[[x.get_name() for x in self.algorithms]] = self.experiment_data.data[[x.name for x in self.algorithms]]
-        # self.data_view.value = new_table
 
         self.param.update({
             "aggregated_attributes": [],
             "aggregated_attribute_domains": {a.name: set() for a in self.experiment_data.numeric_attributes.values()},
             "recompute_aggregate_needed" : True
         })
+        index_width = 17 + max([len(x) for x in self.data_view.value['Index']])*7
+        col_width = 17 + max([len(x) for x in self.data_view.value.columns[1:]] + [20])*7
+        widths_dict = {'Index': index_width} | {x : col_width for x in self.data_view.value.columns[1:]}
+        self.data_view.widths = widths_dict
 
 
     def attributes_updated(self, event):
@@ -316,6 +307,7 @@ class AggregateTable(Report):
 
     @param.depends("precision", "algorithms", "experiment_data.custom_aggregators", watch=True)
     def set_formatter_for_precision(self):
+        logger.debug("setting formatter for precision")
         template = f"""
           <%= function formatnumber() {{
             f_val = parseFloat(value);
@@ -335,21 +327,22 @@ class AggregateTable(Report):
 
 
     def get_watchers_for_param_config(self):
-        return [
-            "attributes",
-            "domains",
-            "precision"
-        ]
+        # return [
+        #     "attributes",
+        #     "domains",
+        #     "precision"
+        # ]
+        return []
 
 
     def get_param_config_dict(self):
         d = {}
-        if set(self.attributes) != set(self.param.attributes.default):
-            d['attrs'] = [self.experiment_data.get_attribute_id(a) for a in  self.attributes]
-        if set(self.domains) != set(self.param.domains.default):
-            d['doms'] = [self.experiment_data.get_domain_id(d) for d in self.domains]
-        if self.precision != self.param.precision.default:
-            d['prec'] = self.precision
+        # if set(self.attributes) != set(self.param.attributes.default):
+        #     d['attrs'] = [self.experiment_data.get_attribute_id(a) for a in  self.attributes]
+        # if set(self.domains) != set(self.param.domains.default):
+        #     d['doms'] = [self.experiment_data.get_domain_id(d) for d in self.domains]
+        # if self.precision != self.param.precision.default:
+        #     d['prec'] = self.precision
         return d
 
 
@@ -361,5 +354,4 @@ class AggregateTable(Report):
             update['domains'] = [self.experiment_data.get_domain_by_id(id) for id in param_config_dict['doms']]
         if 'prec' in param_config_dict:
             update['precision'] = param_config_dict['prec']
-        print(update)
         self.param.update(update)

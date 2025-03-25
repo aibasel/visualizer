@@ -8,6 +8,7 @@ import traceback
 import zlib #for compressing the json parameter dict
 
 from absolute_table import AbsoluteTable
+from diff_table import DiffTable
 from experiment_data import ExperimentData
 from problem_table import ProblemTable
 from scatter import ScatterReport
@@ -42,7 +43,8 @@ class FullViewer(Viewer):
         self.reports = [
             ScatterReport(name="Scatter Plot", experiment_data=self.experiment_data, user_logger=self.user_logger),
             ProblemTable(name="Problem Table", experiment_data=self.experiment_data, user_logger=self.user_logger),
-            AbsoluteTable(name="Absolute Table", experiment_data=self.experiment_data, user_logger=self.user_logger)
+            AbsoluteTable(name="Absolute Table", experiment_data=self.experiment_data, user_logger=self.user_logger),
+            DiffTable(name="Diff Table", experiment_data=self.experiment_data, user_logger=self.user_logger)
         ]
         self.param.selected_report.objects = self.reports
 
