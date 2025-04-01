@@ -51,10 +51,7 @@ class AbsoluteTable(AggregateTable):
 
     def update_data_view_table(self, patch_df):
         logger.debug("updating data view table")
-        # new_df = patch_df[["Index"]]
-        # new_df[[x.get_name() for x in self.algorithms]] = patch_df[[x.name for x in self.algorithms]]
         self.data_view.patch(patch_df)
-        # self.data_view.param.trigger("value")
 
 
     def algorithms_updated(self, event):

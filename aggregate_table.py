@@ -165,7 +165,7 @@ class AggregateTable(Report):
         if not isinstance(self.experiment_data.data, pd.DataFrame):
             return
         mi = pd.MultiIndex.from_tuples([], names=self.data_view.value.index.names)
-        cols = {"Index": pd.Series(dtype='object')} | {a.name: pd.Series(dtype='object') for a in self.algorithms}
+        cols = {"Index": pd.Series(dtype='string')} | {a.name: pd.Series(dtype='object') for a in self.algorithms}
         patch_df = pd.DataFrame(cols, index = mi)
 
         def update_patch_dict(df, row, index_string, aggregator):
@@ -175,9 +175,9 @@ class AggregateTable(Report):
             if aggregator == "gmean":
                 aggregator = stats.gmean
                 df = df.replace(0, 0.000001)
-            patch_df.loc[row] = df.agg(aggregator)
-            patch_df.at[row,"Index"] = index_string % str(len(df))
-
+            res = df.agg(aggregator)
+            res["Index"] = index_string % str(len(df))
+            patch_df.loc[row] = res
         def get_rows_with_index_value(df, value):
             return (df.loc[value] if value in df.index
                     else pd.DataFrame({}, columns=df.columns))
@@ -323,26 +323,25 @@ class AggregateTable(Report):
           }}() %>
         """
         if hasattr(self, "data_view"):
-            self.data_view.formatters = {x.get_name()   : HTMLTemplateFormatter(template=template) for x in self.algorithms}
+            self.data_view.formatters = {x : HTMLTemplateFormatter(template=template) for x in self.data_view.value.columns}
 
 
     def get_watchers_for_param_config(self):
-        # return [
-        #     "attributes",
-        #     "domains",
-        #     "precision"
-        # ]
-        return []
+        return [
+            "attributes",
+            "domains",
+            "precision"
+        ]
 
 
     def get_param_config_dict(self):
         d = {}
-        # if set(self.attributes) != set(self.param.attributes.default):
-        #     d['attrs'] = [self.experiment_data.get_attribute_id(a) for a in  self.attributes]
-        # if set(self.domains) != set(self.param.domains.default):
-        #     d['doms'] = [self.experiment_data.get_domain_id(d) for d in self.domains]
-        # if self.precision != self.param.precision.default:
-        #     d['prec'] = self.precision
+        if set(self.attributes) != set(self.param.attributes.default):
+            d['attrs'] = [self.experiment_data.get_attribute_id(a) for a in  self.attributes]
+        if set(self.domains) != set(self.param.domains.default):
+            d['doms'] = [self.experiment_data.get_domain_id(d) for d in self.domains]
+        if self.precision != self.param.precision.default:
+            d['prec'] = self.precision
         return d
 
 
