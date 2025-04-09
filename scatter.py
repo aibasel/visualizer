@@ -350,12 +350,14 @@ class ScatterReport(Report):
             d['rel'] = self.relative
         if self.group_by != self.param.group_by.default:
             d['group_by'] = self.group_by
+        if self.replace_zero != self.param.replace_zero.default:
+            d['rep0'] = self.replace_zero
         if self.marker_size != self.param.marker_size.default:
             d['m_size'] = self.marker_size
         if self.marker_fill_alpha != self.param.marker_fill_alpha.default:
             d['m_alpha'] = self.marker_fill_alpha
         if self.legend_width != self.param.legend_width.default:
-            d['l_width'] = self.legend_width
+            d['legw'] = self.legend_width
         return d
 
 
@@ -375,10 +377,12 @@ class ScatterReport(Report):
             update["relative"] = d["rel"]
         if "group_by" in d:
             update["group_by"] = d["group_by"]
+        if "rep0" in d:
+            update["replace_zero"] = d["rep0"]
         if "m_size" in d:
             update["marker_size"] = d["m_size"]
         if "m_alpha" in d:
             update["marker_fill_alpha"] = d["m_alpha"]
-        if "l_width" in d:
+        if "legw" in d:
             update["legend_width"] = d["l_width"]
         self.param.update(update)

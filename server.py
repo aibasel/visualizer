@@ -9,6 +9,7 @@ import zlib #for compressing the json parameter dict
 
 from absolute_table import AbsoluteTable
 from attribute_table import AttributeReport
+from cactus import Cactusplot
 from diff_table import DiffTable
 from experiment_data import ExperimentData
 from problem_table import ProblemTable
@@ -46,7 +47,8 @@ class FullViewer(Viewer):
             ProblemTable(name="Problem Table", experiment_data=self.experiment_data, user_logger=self.user_logger),
             AbsoluteTable(name="Absolute Table", experiment_data=self.experiment_data, user_logger=self.user_logger),
             DiffTable(name="Diff Table", experiment_data=self.experiment_data, user_logger=self.user_logger),
-            AttributeReport(name="Attribute Report", experiment_data=self.experiment_data, user_logger=self.user_logger)
+            AttributeReport(name="Attribute Report", experiment_data=self.experiment_data, user_logger=self.user_logger),
+            Cactusplot(name="Cactus Plot", experiment_data=self.experiment_data, user_logger=self.user_logger)
         ]
         self.param.selected_report.objects = self.reports
 

@@ -18,8 +18,8 @@ class AttributeReport(Report):
     task_wins = param.DataFrame(default=pd.DataFrame(), precedence=-1)
 
 
-    def __init__(self, **params):
-        super().__init__(**params)
+    def __init__(self, experiment_data, **params):
+        super().__init__(experiment_data, **params)
 
         self.per_task_table = pd.DataFrame()
         self.per_domain_table = pd.DataFrame()
