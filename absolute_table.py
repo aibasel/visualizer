@@ -70,13 +70,13 @@ class AbsoluteTable(AggregateTable):
     def get_param_config_dict(self):
         d = super().get_param_config_dict()
         if self.algorithms != self.param.algorithms.default:
-            d['alg'] = [alg.id for alg in self.algorithms]
+            d["algs"] = [alg.id for alg in self.algorithms]
         return d
 
 
     def set_params_from_param_config_dict(self, d):
         super().set_params_from_param_config_dict(d)
         update = {}
-        if 'alg' in d:
-            update['algorithms'] = [self.experiment_data.get_algorithm_by_id(id) for id in d['alg']]
+        if "algs" in d:
+            update["algorithms"] = [self.experiment_data.get_algorithm_by_id(id) for id in d["algs"]]
         self.param.update(update)

@@ -155,7 +155,7 @@ class AttributeReport(Report):
     def get_param_config_dict(self):
         d = {}
         if type(self.attribute) is NumericAttribute:
-            d['attr'] = self.attribute.id
+            d["attr"] = self.attribute.id
         return d
 
 

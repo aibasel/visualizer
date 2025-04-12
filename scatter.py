@@ -240,7 +240,7 @@ class ScatterReport(Report):
             df_copy = df_copy[~(df_copy[y] <= 0)]
         # Drop all points where y_rel is infinity if we plot yrel.
         if y == "yrel":
-            df_copy = df_copy[~(df_copy[y] != np.inf)]
+            df_copy = df_copy[(df_copy[y] != np.inf)]
         size_diff = len(self.df)-len(df_copy)
         if len(df_copy) == 0:
             self.user_logger.log(logging.WARNING,
@@ -337,52 +337,52 @@ class ScatterReport(Report):
     def get_param_config_dict(self):
         d = {}
         if type(self.x_attribute) is NumericAttribute:
-            d['xattr'] = self.x_attribute.id
+            d["xattr"] = self.x_attribute.id
         if type(self.y_attribute) is NumericAttribute:
-            d['yattr'] = self.y_attribute.id
+            d["yattr"] = self.y_attribute.id
         if self.aps_config != self.param.aps_config.default:
-            d['aps_config'] = self.aps_config
+            d["aps"] = self.aps_config
         if self.x_scale != self.param.x_scale.default:
-            d['xscale'] = self.x_scale
+            d["xsc"] = self.x_scale
         if self.y_scale != self.param.y_scale.default:
-            d['yscale'] = self.y_scale
+            d["ysc"] = self.y_scale
         if self.relative != self.param.relative.default:
-            d['rel'] = self.relative
+            d["rel"] = self.relative
         if self.group_by != self.param.group_by.default:
-            d['group_by'] = self.group_by
+            d["grp"] = self.group_by
         if self.replace_zero != self.param.replace_zero.default:
-            d['rep0'] = self.replace_zero
+            d["rep0"] = self.replace_zero
         if self.marker_size != self.param.marker_size.default:
-            d['m_size'] = self.marker_size
+            d["m_si"] = self.marker_size
         if self.marker_fill_alpha != self.param.marker_fill_alpha.default:
-            d['m_alpha'] = self.marker_fill_alpha
+            d["m_al"] = self.marker_fill_alpha
         if self.legend_width != self.param.legend_width.default:
-            d['legw'] = self.legend_width
+            d["legw"] = self.legend_width
         return d
 
 
     def set_params_from_param_config_dict(self, d):
-        if "aps_config" in d:
-            self.algorithm_pairs_selector.set_params(d["aps_config"])
+        if "aps" in d:
+            self.algorithm_pairs_selector.set_params(d["aps"])
         update = {}
         if "xattr" in d:
             update["x_attribute"] = self.experiment_data.get_numeric_attribute_by_id(d["xattr"])
         if "yattr" in d:
             update["y_attribute"] = self.experiment_data.get_numeric_attribute_by_id(d["yattr"])
-        if "xscale" in d:
-            update["x_scale"] = d["xscale"]
-        if "yscale" in d:
-            update["y_scale"] = d["yscale"]
+        if "xsc" in d:
+            update["x_scale"] = d["xsc"]
+        if "ysc" in d:
+            update["y_scale"] = d["ysc"]
         if "rel" in d:
             update["relative"] = d["rel"]
-        if "group_by" in d:
-            update["group_by"] = d["group_by"]
+        if "grp" in d:
+            update["group_by"] = d["grp"]
         if "rep0" in d:
             update["replace_zero"] = d["rep0"]
-        if "m_size" in d:
-            update["marker_size"] = d["m_size"]
-        if "m_alpha" in d:
-            update["marker_fill_alpha"] = d["m_alpha"]
+        if "m_si" in d:
+            update["marker_size"] = d["m_si"]
+        if "m_al" in d:
+            update["marker_fill_alpha"] = d["m_al"]
         if "legw" in d:
-            update["legend_width"] = d["l_width"]
+            update["legend_width"] = d["legw"]
         self.param.update(update)

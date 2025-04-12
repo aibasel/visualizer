@@ -195,19 +195,19 @@ class Cactusplot(Report):
     def get_param_config_dict(self):
         d = {}
         if type(self.attribute) is NumericAttribute:
-            d['attr'] = self.attribute.id
+            d["attr"] = self.attribute.id
         if self.algorithms != self.param.algorithms.default:
-            d['alg'] = [alg.id for alg in self.algorithms]
+            d["alg"] = [alg.id for alg in self.algorithms]
         if self.x_scale != self.param.x_scale.default:
-            d['xscale'] = self.x_scale
+            d["xsc"] = self.x_scale
         if self.y_scale != self.param.y_scale.default:
-            d['yscale'] = self.y_scale
+            d["ysc"] = self.y_scale
         if self.replace_zero != self.param.replace_zero.default:
-            d['rep0'] = self.replace_zero
+            d["rep0"] = self.replace_zero
         if self.line_width != self.param.line_width.default:
-            d['linew'] = self.line_width
+            d["linew"] = self.line_width
         if self.legend_width != self.param.legend_width.default:
-            d['legw'] = self.legend_width
+            d["legw"] = self.legend_width
         return d
 
 
@@ -217,11 +217,11 @@ class Cactusplot(Report):
         if "attr" in d:
             update["attribute"] = self.experiment_data.get_numeric_attribute_by_id(d["attr"])
         if "alg" in d:
-            update['algorithms'] = [self.experiment_data.get_algorithm_by_id(id) for id in d['alg']]
-        if "xscale" in d:
-            update["x_scale"] = d["xscale"]
-        if "yscale" in d:
-            update["y_scale"] = d["yscale"]
+            update["algorithms"] = [self.experiment_data.get_algorithm_by_id(id) for id in d["alg"]]
+        if "xsc" in d:
+            update["x_scale"] = d["xsc"]
+        if "ysc" in d:
+            update["y_scale"] = d["ysc"]
         if "rep0" in d:
             update["replace_zero"] = d["rep0"]
         if "linew" in d:

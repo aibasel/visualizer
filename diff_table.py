@@ -121,17 +121,17 @@ class DiffTable(AggregateTable):
     def get_param_config_dict(self):
         d = super().get_param_config_dict()
         if self.aps_config != self.param.aps_config.default:
-            d['aps_config'] = self.aps_config
+            d["aps"] = self.aps_config
         if self.relative != self.param.relative.default:
-            d['rel'] = self.relative
+            d["rel"] = self.relative
         return d
 
 
     def set_params_from_param_config_dict(self, d):
         super().set_params_from_param_config_dict(d)
-        if "aps_config" in d:
-            self.algorithm_pairs_selector.set_params(d["aps_config"])
+        if "aps" in d:
+            self.algorithm_pairs_selector.set_params(d["aps"])
         update = {}
-        if 'rel' in d:
-            update['relative'] = d['rel']
+        if "rel" in d:
+            update["relative"] = d["rel"]
         self.param.update(update)

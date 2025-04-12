@@ -359,11 +359,11 @@ class ExperimentData(param.Parameterized):
         if self.properties_url != self.param["properties_url"].default:
             d["url"] = self.properties_url
         if self.custom_min_wins != self.param["custom_min_wins"].default:
-            d["min_wins"] = self.custom_min_wins
+            d["minw"] = self.custom_min_wins
         if self.custom_aggregators != self.param["custom_aggregators"].default:
             d["aggs"] = self.custom_aggregators
         if self.custom_algorithm_aliases != self.param["custom_algorithm_aliases"].default:
-            d["aliases"] = self.custom_algorithm_aliases
+            d["alis"] = self.custom_algorithm_aliases
         return d
 
 
@@ -372,12 +372,12 @@ class ExperimentData(param.Parameterized):
         self.properties_mode = "url"
         if "url" in d:
             self.properties_url = d["url"]
-        if "min_wins" in d:
-            for id, value in d["min_wins"].items():
+        if "minw" in d:
+            for id, value in d["minw"].items():
                 self.get_numeric_attribute_by_id(id).min_wins = value
         if "aggs" in d:
             for id, value in d["aggs"].items():
                 self.get_numeric_attribute_by_id(id).aggregator = value
-        if "aliases" in d:
-            for id, alias in d["aliases"].items():
+        if "alis" in d:
+            for id, alias in d["alis"].items():
                 self.get_algorithm_by_id(id).alias = alias

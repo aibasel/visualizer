@@ -117,7 +117,7 @@ class FullViewer(Viewer):
             base64.urlsafe_b64decode(self.param_config.encode())))
         logger.debug(f"loading param dict: {params}")
         logger.debug("loading selected report")
-        self.selected_report = self.reports[params["repid"]]
+        self.selected_report = self.reports[params["repn"]]
         logger.debug("loading experiment data params")
         self.experiment_data.set_params_from_param_config_dict(params["data"])
         logger.debug("loading selected report params")
@@ -149,7 +149,7 @@ class FullViewer(Viewer):
             return
 
         params = {
-            "repid" : self.reports.index(self.selected_report),
+            "repn" : self.reports.index(self.selected_report),
             "data": self.experiment_data.get_param_config_dict(),
             "rep" : self.selected_report.get_param_config_dict()
         }

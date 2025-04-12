@@ -130,20 +130,20 @@ class ProblemTable(Report):
     def get_param_config_dict(self):
         d = {}
         if self.domain != self.param.domain.default:
-            d['dom'] = self.domain
+            d["dom"] = self.domain
         if self.problem != self.param.domain.default:
-            d['prob'] = self.problem
+            d["prob"] = self.problem
         if self.algorithms != self.param.algorithms.default:
-            d['alg'] = [alg.id for alg in self.algorithms]
+            d["alg"] = [alg.id for alg in self.algorithms]
         return d
 
 
     def set_params_from_param_config_dict(self, param_config_dict):
         update = {}
-        if 'dom' in param_config_dict:
-            update['domain'] = param_config_dict['dom']
-        if 'prob' in param_config_dict:
-            update['problem'] = param_config_dict['prob']
-        if 'alg' in param_config_dict:
-            update['algorithms'] = [self.experiment_data.get_algorithm_by_id(id) for id in param_config_dict['alg']]
+        if "dom" in param_config_dict:
+            update["domain"] = param_config_dict["dom"]
+        if "prob" in param_config_dict:
+            update["problem"] = param_config_dict["prob"]
+        if "alg" in param_config_dict:
+            update["algorithms"] = [self.experiment_data.get_algorithm_by_id(id) for id in param_config_dict["alg"]]
         self.param.update(update)
