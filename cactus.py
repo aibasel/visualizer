@@ -215,7 +215,7 @@ class Cactusplot(Report):
     def set_params_from_param_config_dict(self, d):
         update = dict()
         if "attr" in d:
-            update["attribute"] = self.experiment_data.get_numeric_attribute_by_id(d["attr"])
+            update["attribute"] = self.experiment_data.get_numeric_attribute_by_position(d["attr"])
         if "alg" in d:
             update["algorithms"] = [self.experiment_data.get_algorithm_by_id(id) for id in d["alg"]]
         if "xsc" in d:

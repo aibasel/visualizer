@@ -227,8 +227,11 @@ class ExperimentData(param.Parameterized):
         return ret
 
 
-    def get_numeric_attribute_by_id(self, id):
+    def get_numeric_attribute_by_position(self, id):
         return self.numeric_attributes[self.sorted_num_attr_names[int(id)]]
+
+    def get_numeric_attribute_position(self, name):
+        return self.sorted_num_attr_names.index(name)
 
     def get_algorithm_by_id(self, id):
         id = int(id)
@@ -236,11 +239,11 @@ class ExperimentData(param.Parameterized):
         return self.algorithms[name]
 
     # NOTE: These methods assume that attributes and domains are sorted!
-    def get_attribute_by_id(self, id):
+    def get_attribute_by_position(self, id):
         return self.attributes[id]
 
-    def get_attribute_id(self, attribute):
-        return self.attributes.index(attribute)
+    def get_attribute_position(self, name):
+        return self.attributes.index(name)
 
     def get_domain_by_id(self, id):
         return self.domains[id]
@@ -279,8 +282,6 @@ class ExperimentData(param.Parameterized):
             data = pd.read_json(properties, orient="index")
             attributes = sorted([x for x in data.columns if x not in ["algorithm", "domain", "problem"]])
             sorted_num_attr_names = [x for x in attributes if pd.api.types.is_numeric_dtype(data.dtypes[x])]
-            numeric_attributes = {x: NumericAttribute(name=x, exp_data=self, id=i)
-                for i,x in enumerate(sorted_num_attr_names)}
             sorted_alg_names= sorted([x for x in data.algorithm.unique()])
             algorithms = {x: Algorithm(name=x, exp_data=self, id=i)
                 for i,x in enumerate(sorted_alg_names)}
@@ -298,6 +299,16 @@ class ExperimentData(param.Parameterized):
             for domain in domains:
                 problems_by_domain[domain] = [x for x in data.loc[(attributes[0],domain)].index.get_level_values('problem')]
                 num_problems  += len(problems_by_domain[domain])
+
+            success, new_data = self.compute_ipc_score(data)
+            if success:
+                new_attributes = ["ipc-sat-score", "ipc-sat-score-no-planning-domains"]
+                attributes = sorted(attributes + new_attributes)
+                sorted_num_attr_names = sorted(sorted_num_attr_names + new_attributes)
+                data = new_data.sort_values("attribute")
+            # numeric attributes should only be set up once ipc scores have been computed
+            numeric_attributes = {x: NumericAttribute(name=x, exp_data=self, id=i)
+                for i,x in enumerate(sorted_num_attr_names)}
 
             self.param.update({
                 "data": data,
@@ -343,6 +354,29 @@ class ExperimentData(param.Parameterized):
                 self.user_logger.log(logging.ERROR, "Could not read properties")
 
 
+
+
+    def compute_ipc_score(self, data):
+        if "cost" not in data.index.get_level_values(0):
+            return False, pd.DataFrame()
+        upper_bounds = pd.read_json("upper_bounds.json", orient="index")
+        upper_bounds = upper_bounds.set_index(["domain","problem"])
+        costs = data.loc["cost"]
+
+        new_data = data
+        for with_upper in [True, False]:
+            tmp_data = costs.copy()
+            if with_upper:
+                tmp_data["upper_bounds"] = upper_bounds
+            min_costs = tmp_data.min(axis=1)
+
+            score_data = (1/costs).fillna(0).multiply(min_costs, axis=0)
+            score_data["attribute"] = "ipc-sat-score" if with_upper else "ipc-sat-score-no-planning-domains"
+            score_data.set_index(["attribute", score_data.index], inplace=True)
+            new_data = pd.concat([new_data, score_data])
+        return True, new_data
+
+
     def get_watchers_for_param_config(self):
         return [
             "properties_mode",
@@ -374,10 +408,10 @@ class ExperimentData(param.Parameterized):
             self.properties_url = d["url"]
         if "minw" in d:
             for id, value in d["minw"].items():
-                self.get_numeric_attribute_by_id(id).min_wins = value
+                self.get_numeric_attribute_by_position(id).min_wins = value
         if "aggs" in d:
             for id, value in d["aggs"].items():
-                self.get_numeric_attribute_by_id(id).aggregator = value
+                self.get_numeric_attribute_by_position(id).aggregator = value
         if "alis" in d:
             for id, alias in d["alis"].items():
                 self.get_algorithm_by_id(id).alias = alias

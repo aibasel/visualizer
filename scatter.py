@@ -35,6 +35,8 @@ class ScatterReport(Report):
     replace_zero = param.Number(label="Replace 0 with", default=0, doc="Replace all 0 values with the given values (useful for log plots).")
     marker_size = param.Integer(label="Marker Size", default = 7, bounds = (2,50))
     marker_fill_alpha = param.Number(label="Marker Fill Alpha", default = 0.0, bounds=(0.0,1.0))
+    markers = param.List(label="Markers", default=MARKERS)
+    colors = param.List(label="Colors", default = COLORS)
     legend_width = param.Integer(label="Legend Width", default = 1500, bounds = (200,5000))
 
     # internal parameters
@@ -124,6 +126,18 @@ class ScatterReport(Report):
                 min_width=100,
                 sizing_mode="stretch_width"
             ),
+            pn.widgets.LiteralInput.from_param(
+                self.param.markers,
+                margin=(5, 0, 5, 0),
+                min_width=100,
+                sizing_mode="stretch_width"
+            ),
+            pn.widgets.LiteralInput.from_param(
+                self.param.colors,
+                margin=(5, 0, 5, 0),
+                min_width=100,
+                sizing_mode="stretch_width"
+            ),
             pn.widgets.IntSlider.from_param(
                 self.param.legend_width,
                 margin=(5, 0, 5, 0),
@@ -175,7 +189,7 @@ class ScatterReport(Report):
         logger.debug("end updating data")
 
 
-    @param.depends("df", "x_scale", "y_scale", "relative", "marker_size", "marker_fill_alpha", "legend_width", watch=True)
+    @param.depends("df", "x_scale", "y_scale", "relative", "marker_size", "marker_fill_alpha", "markers", "colors", "legend_width", watch=True)
     def update_data_view(self):
         logger.debug("start updating data view")
         plot = figure(
@@ -261,8 +275,8 @@ class ScatterReport(Report):
         for i, index in enumerate(indices):
             p_df = df_copy.loc[[index]].reset_index()
             p = plot.scatter(x=x, y=y, source=p_df,
-                line_color=COLORS[i%len(COLORS)], marker=MARKERS[i%len(MARKERS)],
-                fill_color=COLORS[i%len(COLORS)], fill_alpha=self.marker_fill_alpha,
+                line_color=self.colors[i%len(self.colors)], marker=self.markers[i%len(self.markers)],
+                fill_color=self.colors[i%len(self.colors)], fill_alpha=self.marker_fill_alpha,
                 size=self.marker_size, muted_fill_alpha = min(0.1,self.marker_fill_alpha))
             p.data_source.selected.on_change('indices', partial(self.on_click_callback, df=p_df, source=p.data_source))
             legend_items.append(LegendItem(label=index, renderers = [plot.renderers[i]]))
@@ -330,6 +344,8 @@ class ScatterReport(Report):
             "group_by",
             "marker_size",
             "marker_fill_alpha",
+            "markers",
+            "colors",
             "legend_width"
         ]
 
@@ -356,6 +372,10 @@ class ScatterReport(Report):
             d["m_si"] = self.marker_size
         if self.marker_fill_alpha != self.param.marker_fill_alpha.default:
             d["m_al"] = self.marker_fill_alpha
+        if self.markers != self.param.markers.default:
+            d["mrks"] = self.markers
+        if self.colors != self.param.colors.default:
+            d["clrs"] = self.colors
         if self.legend_width != self.param.legend_width.default:
             d["legw"] = self.legend_width
         return d
@@ -366,9 +386,9 @@ class ScatterReport(Report):
             self.algorithm_pairs_selector.set_params(d["aps"])
         update = {}
         if "xattr" in d:
-            update["x_attribute"] = self.experiment_data.get_numeric_attribute_by_id(d["xattr"])
+            update["x_attribute"] = self.experiment_data.get_numeric_attribute_by_position(d["xattr"])
         if "yattr" in d:
-            update["y_attribute"] = self.experiment_data.get_numeric_attribute_by_id(d["yattr"])
+            update["y_attribute"] = self.experiment_data.get_numeric_attribute_by_position(d["yattr"])
         if "xsc" in d:
             update["x_scale"] = d["xsc"]
         if "ysc" in d:
@@ -383,6 +403,10 @@ class ScatterReport(Report):
             update["marker_size"] = d["m_si"]
         if "m_al" in d:
             update["marker_fill_alpha"] = d["m_al"]
+        if "mrks" in d:
+            update["markers"] = d["mrks"]
+        if "clrs" in d:
+            update["colors"] = d["clrs"]
         if "legw" in d:
             update["legend_width"] = d["legw"]
         self.param.update(update)

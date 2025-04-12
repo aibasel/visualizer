@@ -162,6 +162,6 @@ class AttributeReport(Report):
     def set_params_from_param_config_dict(self, d):
         update = {}
         if "attr" in d:
-            update["attribute"] = self.experiment_data.get_numeric_attribute_by_id(d["attr"])
+            update["attribute"] = self.experiment_data.get_numeric_attribute_by_position(d["attr"])
         self.param.update(update)
 

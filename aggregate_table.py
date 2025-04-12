@@ -337,7 +337,7 @@ class AggregateTable(Report):
     def get_param_config_dict(self):
         d = {}
         if set(self.attributes) != set(self.param.attributes.default):
-            d["attrs"] = [self.experiment_data.get_attribute_id(a) for a in  self.attributes]
+            d["attrs"] = [self.experiment_data.get_attribute_position(a) for a in self.attributes]
         if set(self.domains) != set(self.param.domains.default):
             d["doms"] = [self.experiment_data.get_domain_id(d) for d in self.domains]
         if self.precision != self.param.precision.default:
@@ -348,7 +348,7 @@ class AggregateTable(Report):
     def set_params_from_param_config_dict(self, param_config_dict):
         update = {}
         if "attrs" in param_config_dict:
-            update["attributes"] = [self.experiment_data.get_attribute_by_id(id) for id in param_config_dict["attrs"]]
+            update["attributes"] = [self.experiment_data.get_attribute_by_position(id) for id in param_config_dict["attrs"]]
         if "doms" in param_config_dict:
             update["domains"] = [self.experiment_data.get_domain_by_id(id) for id in param_config_dict["doms"]]
         if "prec" in param_config_dict:

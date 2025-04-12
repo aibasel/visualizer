@@ -134,7 +134,7 @@ class ProblemTable(Report):
         if self.problem != self.param.domain.default:
             d["prob"] = self.problem
         if self.algorithms != self.param.algorithms.default:
-            d["alg"] = [alg.id for alg in self.algorithms]
+            d["algs"] = [alg.id for alg in self.algorithms]
         return d
 
 
@@ -144,6 +144,6 @@ class ProblemTable(Report):
             update["domain"] = param_config_dict["dom"]
         if "prob" in param_config_dict:
             update["problem"] = param_config_dict["prob"]
-        if "alg" in param_config_dict:
-            update["algorithms"] = [self.experiment_data.get_algorithm_by_id(id) for id in param_config_dict["alg"]]
+        if "algs" in param_config_dict:
+            update["algorithms"] = [self.experiment_data.get_algorithm_by_id(id) for id in param_config_dict["algs"]]
         self.param.update(update)
