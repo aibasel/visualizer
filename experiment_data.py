@@ -11,6 +11,39 @@ from user_logger import UserLogger
 logger = logging.getLogger("visualizer.experiment_data")
 pd.set_option('future.no_silent_downcasting', True)
 
+PREDEFINED_ATTRIBUTES = {
+  "cost" : (True, "sum"),
+  "coverage" : (False, "sum"),
+  "dead_ends" : (False, "sum"),
+  "evaluated" : (True, "gmean"),
+  "evaluations" : (True, "gmean"),
+  "evaluations_until_last_jump" : (True, "gmean"),
+  "expansions" : (True, "gmean"),
+  "expansions_until_last_jump" : (True, "gmean"),
+  "generated" : (True, "gmean"),
+  "generated_until_last_jump" : (True, "gmean"),
+  "initial_h_value" : (False, "sum"),
+  "ipc-sat-score" : (False, "sum"),
+  "ipc-sat-score-no-planning-domains" : (False, "sum"),
+  "memory" : (True, "sum"),
+  "plan_length" : (True, "sum"),
+  "planner_memory" : (True, "sum"),
+  "planner_time" : (True, "gmean"),
+  "planner_wall_clock_time" : (True, "gmean"),
+  "raw_memory" : (True, "sum"),
+  "score_evaluations" : (False, "sum"),
+  "score_expansions" : (False, "sum"),
+  "score_generated" : (False, "sum"),
+  "score_memory" : (False, "sum"),
+  "score_planner_memory" : (False, "sum"),
+  "score_planner_time" : (False, "sum"),
+  "score_search_time" : (False, "sum"),
+  "score_total_time" : (False, "sum"),
+  "search_time" : (True, "gmean"),
+  "total_time" : (True, "gmean"),
+  "translator_time_done" : (True, "gmean")
+}
+
 
 class NumericAttribute(Viewer):
     min_wins = param.Boolean(default=False, doc="Whether a lower value is better or not")
@@ -317,8 +350,10 @@ class ExperimentData(param.Parameterized):
                 sorted_num_attr_names = sorted(sorted_num_attr_names + new_attributes)
                 data = new_data.sort_values("attribute")
             # numeric attributes should only be set up once ipc scores have been computed
-            numeric_attributes = {x: NumericAttribute(name=x, exp_data=self, id=i)
-                for i,x in enumerate(sorted_num_attr_names)}
+            numeric_attributes = dict()
+            for i,x in enumerate(sorted_num_attr_names):
+                min_wins, agg = PREDEFINED_ATTRIBUTES.get(x, (False, "sum"))
+                numeric_attributes[x] = NumericAttribute(name=x, exp_data=self, id=i, min_wins=min_wins, aggregator=agg)
 
             self.param.update({
                 "data": data,
