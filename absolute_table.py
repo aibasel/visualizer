@@ -10,7 +10,25 @@ class AbsoluteTable(AggregateTable):
 
     def __init__(self, **params):
         super().__init__(**params)
-        self.param_view.insert(0, pn.widgets.CrossSelector.from_param(
+
+        self.report_information = """
+                <p>A full table on all attributes, comparing the different 
+                algorithms against each other and aggregating over domains /
+                all problems.</p>
+                
+                <p>Data is organized by attribute, then domain, then problem.
+                You can click on attributes/domains to unfold the next level,
+                and reclick to fold again. Clicking on a concrete problem opens
+                a ProblemReport comparing all attributes for this specific
+                problem. Several popups can be open at the same time.</p>
+
+                <p>Numeric values are aggregated over the set of instances where
+                all selected algorithms have a value for the corresponding
+                attribute. They are also color-coded, with blue denoting a worse
+                and green a better value.</p>"""
+
+        self.param_view.insert(0, pn.pane.HTML("<label>Algorithms</label>", margin=(5, 0, -5, 0)))
+        self.param_view.insert(1, pn.widgets.CrossSelector.from_param(
             self.param.algorithms,
             name="",
             definition_order=False,

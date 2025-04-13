@@ -78,7 +78,16 @@ class AlgorithmPairsSelector(Viewer):
         self.entries = [AlgorithmPair(self, self.exp_data)]
 
         self.param_view = pn.Column(
-            pn.pane.HTML("<label>Algorithms</label>", margin=(5,0,5,0)),
+            pn.Row(
+                pn.pane.HTML("<label>Algorithms</label>", margin=(5,-10,5,0)),
+                pn.widgets.TooltipIcon(
+                    value='Each row specifies the algorithm used on the x '
+                          '(left) and y (axis) for one subplot.\n'
+                          'Specifying a pair "\*x\*" "\*y\*" will make a subplot '
+                          'for all algorithm pairs whose name only differs in '
+                          'that the x axis algorithm contains "x" and the '
+                          'y axis algorithm contains "y".')
+            ),
             pn.Column(
                 pn.Row(self.entries[0].first_view, self.entries[0].second_view, margin=(-10,0,0,0))
             ),

@@ -30,13 +30,13 @@ class ScatterReport(Report):
     algorithm_pairs_selector = param.Parameter()
     x_scale = param.Selector(label="X Axis Scale", objects=["log", "linear"], default="log")
     y_scale = param.Selector(label="Y Axis Scale", objects=["log", "linear"], default="log")
-    relative = param.Boolean(label="Relative", default=False, doc="If true, the values on the y axis are replaced with y/x.")
+    relative = param.Boolean(label="Y Axis relative to X Axis", default=False)
     group_by = param.Selector(label="Group By", objects=["name", "domain"], default="name")
     replace_zero = param.Number(label="Replace 0 with", default=0, doc="Replace all 0 values with the given values (useful for log plots).")
     marker_size = param.Integer(label="Marker Size", default = 7, bounds = (2,50))
     marker_fill_alpha = param.Number(label="Marker Fill Alpha", default = 0.0, bounds=(0.0,1.0))
-    markers = param.List(label="Markers", default=MARKERS)
-    colors = param.List(label="Colors", default = COLORS)
+    markers = param.List(label="Markers", default=MARKERS, doc="A list of marker shapes to use in the plot. When more subplots than markers exist, the list is repeated. All matplotlib shapes are compatible")
+    colors = param.List(label="Colors", default = COLORS, doc="A list of marker colors to use in the plot.  When more subplots than colors exist, the list is repeated.")
     legend_width = param.Integer(label="Legend Width", default = 1500, bounds = (200,5000))
 
     # internal parameters
@@ -48,11 +48,27 @@ class ScatterReport(Report):
     def __init__(self, experiment_data, **params):
         super().__init__(experiment_data, **params)
 
+        self.report_information ="""
+            <p>Compares two attribute/algorithm combinations on all problems.</p>
+                        
+            <p>Clicking on a datapoint will highlight this point and open a
+            popup with a Problem Table for that particular problem.
+            Several popups can be open at the same time.</p>"""
+
         self.algorithm_pairs_selector = AlgorithmPairsSelector(self.experiment_data)
 
         self.data_view = pn.Column(sizing_mode="stretch_both")
         self.param_view.extend([
-            pn.pane.HTML("<label>Attributes</label>", margin=(5, 0, -5, 0)),
+            pn.Row(
+                pn.pane.HTML(
+                    "<label>X Attribute</label>",
+                    margin=(5, 0, -5, 0),
+                    sizing_mode="stretch_width"),
+                pn.pane.HTML(
+                    "<label>Y Attribute</label>",
+                    margin=(5, 0, -5, 0),
+                    sizing_mode="stretch_width")
+            ),
             pn.Row(
                 pn.widgets.AutocompleteInput.from_param(
                     self.param.x_attribute,
@@ -79,7 +95,16 @@ class ScatterReport(Report):
                 sizing_mode="stretch_width"
             ),
             self.algorithm_pairs_selector,
-            pn.pane.HTML("<label>Scale</label>", margin=(5, 0, -5, 0)),
+            pn.Row(
+                pn.pane.HTML(
+                    "<label>X Scale</label>",
+                    margin=(5, 0, -5, 0),
+                    sizing_mode="stretch_width"),
+                pn.pane.HTML(
+                    "<label>Y Scale</label>",
+                    margin=(5, 0, -5, 0),
+                    sizing_mode="stretch_width")
+            ),
             pn.Row(
                 pn.widgets.RadioButtonGroup.from_param(
                     self.param.x_scale,
@@ -97,9 +122,14 @@ class ScatterReport(Report):
                 ),
                 sizing_mode="stretch_width"
             ),
-            pn.widgets.Checkbox.from_param(
-                self.param.relative,
-                margin=(5, 0, 5, 0),
+            pn.Row(
+                pn.widgets.Checkbox.from_param(
+                    self.param.relative,
+                    margin=(5, -10, 5, 0),
+                ),
+                pn.widgets.TooltipIcon(
+                    value="If true, the values on the y axis are replaced by y/x."
+                )
             ),
             pn.pane.HTML("<label>Group By</label>", margin=(5, 0, -5, 0)),
             pn.widgets.RadioButtonGroup.from_param(
@@ -138,11 +168,16 @@ class ScatterReport(Report):
                 min_width=100,
                 sizing_mode="stretch_width"
             ),
-            pn.widgets.IntSlider.from_param(
-                self.param.legend_width,
-                margin=(5, 0, 5, 0),
-                min_width=100,
-                sizing_mode="stretch_width"
+            pn.Row(
+                pn.widgets.IntSlider.from_param(
+                    self.param.legend_width,
+                    margin=(5, -10, 5, 0),
+                    min_width=100,
+                    sizing_mode="stretch_width"
+                ),
+                pn.widgets.TooltipIcon(
+                    value="The legend with does not adjust reactively, use this slider to adjust manually."
+                )
             )
         ])
         

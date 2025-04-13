@@ -11,6 +11,7 @@ logger = logging.getLogger("visualizer.report")
 class Report(Viewer):
 
     experiment_data = param.Parameter(precedence=-1)
+    report_information = param.String(precedence=-1, default="A short description of the report.")
 
 
     def __init__(self, experiment_data, **params):

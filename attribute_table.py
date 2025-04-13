@@ -21,6 +21,15 @@ class AttributeReport(Report):
     def __init__(self, experiment_data, **params):
         super().__init__(experiment_data, **params)
 
+        self.report_information = """
+            <p>Shows on how many domains/problems the row entry algorithm is
+            better than the column entry algorithm.</p>
+            
+            <p>Clicking on a cell gives a detailed comparison table as a popup.
+            When having a taskwise comparison open, clicking on a row will
+            open a Problem Table comparing all attributes for this specific
+            problem.</p>"""
+
         self.per_task_table = pd.DataFrame()
         self.per_domain_table = pd.DataFrame()
 
@@ -33,13 +42,14 @@ class AttributeReport(Report):
         self.task_view.on_click(self.on_task_wise_click_callback)
 
         self.data_view = pn.Column(
-            pn.pane.HTML("# wins per domain", styles={'font-size': '12pt', 'font-family': 'Arial', 'font-weight': 'bold', 'padding-left': '10px'}),
+            pn.pane.HTML("#domains where row wins more often", styles={'font-size': '12pt', 'font-family': 'Arial', 'font-weight': 'bold', 'padding-left': '10px'}),
             self.domain_view,
-            pn.pane.HTML("# wins per task", styles={'font-size': '12pt', 'font-family': 'Arial', 'font-weight': 'bold', 'padding-left': '10px'}),
+            pn.pane.HTML("#tasks where row wins", styles={'font-size': '12pt', 'font-family': 'Arial', 'font-weight': 'bold', 'padding-left': '10px'}),
             self.task_view,
         )
 
         self.param_view.extend([
+            pn.pane.HTML("<label>Attribute</label>", margin=(5, 0, -5, 0)),
             pn.widgets.AutocompleteInput.from_param(
                 self.param.attribute,
                 name="",
@@ -50,19 +60,7 @@ class AttributeReport(Report):
                 margin=(5, 0, 5, 0),
                 min_width=100,
                 sizing_mode="stretch_width",
-            ),
-            pn.pane.Markdown("""
-                ### Information
-
-                Shows on how many domains/problems the row entry algorithm is
-                better than the column entry algorithm. Clicking on a cell
-                gives a detailed comparison table below the domain/task wise
-                tables.
-
-                When having a per task comparison open, clicking on a row will
-                open a ProblemReport comparing all attributes for this specific
-                problem.
-            """)
+            )
         ])
 
 

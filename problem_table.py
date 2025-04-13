@@ -17,6 +17,10 @@ class ProblemTable(Report):
 
     def __init__(self, experiment_data, sizing_mode = "stretch_both", **params):
         super().__init__(experiment_data, **params)
+
+        self.report_information = """
+            <p>Show all attributes for a single problem.</p>"""
+
         # setting experiment_data in super triggers select_all_algorithms(),
         # meaning we need to set it to the given parameter manually here
         if "algorithms" in params:
@@ -46,6 +50,7 @@ class ProblemTable(Report):
                 min_width=100,
                 sizing_mode="stretch_width"
             ),
+            pn.pane.HTML("<label>Algorithms</label>", margin=(5, 0, -5, 0)),
             pn.widgets.CrossSelector.from_param(
                 self.param.algorithms,
                 name="",

@@ -20,12 +20,38 @@ class DiffTable(AggregateTable):
 
     def __init__(self, **params):
         super().__init__(**params)
+
+        self.report_information = """
+            <p>A full table on all attributes, comparing pairs of algorithms 
+            and aggregating over domains / all problems.</p>
+            
+            <p>Data is organized by attribute, then domain, then problem.
+            You can click on attributes/domains to unfold the next level,
+            and reclick to fold again. Clicking on a concrete problem opens
+            a ProblemReport comparing all attributes for this specific
+            problem. Several popups can be open at the same time.</p>
+
+            <p>Numeric values are aggregated over the set of instances where
+            all algorithms have a value for the corresponding attribute.
+            They are also color-coded, with blue denoting a worse
+            and green a better value. The diff column is correspondingly
+            color-coded red (second algorithm worse) and green (second algorithm
+            better).</p>"""
+
         self.algorithm_pairs_selector = AlgorithmPairsSelector(self.experiment_data)
         self.param_view.insert(0, self.algorithm_pairs_selector)
-        self.param_view.append(pn.widgets.Checkbox.from_param(
-                self.param.relative,
-                margin=(5, 0, 5, 0),
-        ))
+        self.param_view.append(
+            pn.Row(
+                pn.widgets.Checkbox.from_param(
+                    self.param.relative,
+                    margin=(5, 0, 5, 0),
+                ),
+                pn.widgets.TooltipIcon(
+                    value="If true, the Diff column is computed with\n(Algorithm2/Algorithm1)-1 instead of\nAlgorithm2-Algorithm1.",
+                    margin=(5, -10, 5, 0)
+                )
+            )
+        )
         self.data_view.style.apply(func=self.style_table_by_row, axis=1)
 
     def style_table_by_row(self, row):

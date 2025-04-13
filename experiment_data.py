@@ -146,8 +146,18 @@ class ExperimentData(param.Parameterized):
 
         self.numeric_attr_views = pn.GridBox(
             pn.pane.HTML("<b>Attribute</b>"),
-            pn.pane.HTML("<b>Aggregator</b>"),
-            pn.pane.HTML("<b>Min wins</b>"),
+            pn.Row(
+                pn.pane.HTML("<b>Aggregator</b>", margin=(5,-10,5,0)),
+                pn.widgets.TooltipIcon(
+                    value="Which aggregator to use in table aggregate rows (domains/attribute). gmean is the geometric mean."
+                )
+            ),
+            pn.Row(
+                pn.pane.HTML("<b>Min wins</b>", margin=(5,-10,5,0)),
+                pn.widgets.TooltipIcon(
+                    value="Whether a smaller value is better. Used for color highlights in tables."
+                )
+            ),
             name="Attributes", ncols=3, sizing_mode="stretch_width")
 
         self.algorithm_views = pn.GridBox(

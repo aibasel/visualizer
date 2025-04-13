@@ -36,7 +36,7 @@ class AggregateTable(Report):
     algorithms = param.ListSelector(default=[])
     attributes = param.ListSelector(default=[])
     domains = param.ListSelector(default=[])
-    precision = param.Integer(default=3, bounds=(0,15))
+    precision = param.Integer(default=3, bounds=(0,15), label="Floating point precision")
 
     # internal parameters
     # stores which attributes are unfolded (the keys, and for each
@@ -84,6 +84,7 @@ class AggregateTable(Report):
         self.data_view.on_click(self.on_click_callback)
 
         self.param_view.extend([
+            pn.pane.HTML("<label>Attributes</label>", margin=(5, 0, -5, 0)),
             pn.widgets.CrossSelector.from_param(
                 self.param.attributes,
                 name="",
@@ -92,6 +93,7 @@ class AggregateTable(Report):
                 width=400
                 # TODO: can we have a min_width with stretching? (Could not get it to work so far)
             ),
+            pn.pane.HTML("<label>Domains</label>", margin=(5, 0, -5, 0)),
             pn.widgets.CrossSelector.from_param(
                 self.param.domains,
                 name="",

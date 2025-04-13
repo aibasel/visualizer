@@ -37,6 +37,7 @@ class FullViewer(Viewer):
     user_logger = param.Parameter(precedence=-1)
     experiment_data = param.Parameter(precedence=-1)
     param_config = param.String(precedence=-1) #encodes all relevant parameter information in a string that is passed to the url
+    report_information = param.String(precedence=-1, default="")
 
     def __init__(self, **params):
         super().__init__(**params)
@@ -72,6 +73,7 @@ class FullViewer(Viewer):
                     min_width=100,
                     sizing_mode="stretch_width"
                 ),
+                pn.pane.HTML(self.param.report_information),
                 pn.pane.Markdown("## Properties", margin=(25,0,0,0)),
                 pn.layout.Divider(margin=(-15,0,0,0)),
                 self.experiment_data.param_view,
@@ -101,6 +103,7 @@ class FullViewer(Viewer):
     @param.depends("selected_report", watch=True)
     def report_selected(self):
         logger.debug("setting selected report")
+        self.report_information = self.selected_report.report_information
         for i, report in enumerate(self.reports):
             self.report_param_views[i].visible = bool(self.selected_report == report)
             self.report_data_views[i].visible = bool(self.selected_report == report)

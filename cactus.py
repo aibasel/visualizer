@@ -25,8 +25,7 @@ class Cactusplot(Report):
     algorithms = param.ListSelector()
     x_scale = param.Selector(label="X Axis scale", default = "log", objects = ["log","linear"])
     y_scale = param.Selector(label="Y Axis scale", default = "linear", objects = ["log","linear"])
-    replace_zero = param.Number(default = 0,
-        doc = "Replace all 0 values with the chosen number. Afterwards, all 0 values will be dropped.")
+    replace_zero = param.Number(label="Replace 0 with", default=0, doc="Replace all 0 values with the given values (useful for log plots).")
     line_width = param.Integer(default = 2, bounds=(1,10))
     legend_width = param.Integer(label="Legend Width", default = 1500, bounds = (200,5000))
 
@@ -34,8 +33,13 @@ class Cactusplot(Report):
     def __init__(self, experiment_data, **params):
         super().__init__(experiment_data, **params)
 
+        self.report_information = """
+            Given a numeric attribute, show how many problems (on the y axis) 
+            have a value lower than the x value for this attribute."""
+
         self.data_view = pn.Column(sizing_mode="stretch_both")
         self.param_view.extend([
+            pn.pane.HTML("<label>Attribute</label>", margin=(5, 0, -5, 0)),
             pn.widgets.AutocompleteInput.from_param(
                 self.param.attribute,
                 name="",
@@ -47,6 +51,7 @@ class Cactusplot(Report):
                 min_width=100,
                 sizing_mode="stretch_width",
             ),
+            pn.pane.HTML("<label>Algorithms</label>", margin=(5, 0, -5, 0)),
             pn.widgets.CrossSelector.from_param(
                 self.param.algorithms,
                 name="",
@@ -55,6 +60,16 @@ class Cactusplot(Report):
                 margin=(5, 0, 5, 0),
                 width=400
                 # TODO: can we have a min_width with stretching? (Could not get it to work so far)
+            ),
+            pn.Row(
+                pn.pane.HTML(
+                    "<label>X Scale</label>",
+                    margin=(5, 0, -5, 0),
+                    sizing_mode="stretch_width"),
+                pn.pane.HTML(
+                    "<label>Y Scale</label>",
+                    margin=(5, 0, -5, 0),
+                    sizing_mode="stretch_width")
             ),
             pn.Row(
                 pn.widgets.RadioButtonGroup.from_param(
@@ -85,11 +100,16 @@ class Cactusplot(Report):
                 min_width=100,
                 sizing_mode="stretch_width"
             ),
-            pn.widgets.IntSlider.from_param(
-                self.param.legend_width,
-                margin=(5, 0, 5, 0),
-                min_width=100,
-                sizing_mode="stretch_width"
+            pn.Row(
+                pn.widgets.IntSlider.from_param(
+                    self.param.legend_width,
+                    margin=(5, -10, 5, 0),
+                    min_width=100,
+                    sizing_mode="stretch_width"
+                ),
+                pn.widgets.TooltipIcon(
+                    value="The legend with does not adjust reactively, use this slider to adjust manually."
+                )
             )
         ])
 
