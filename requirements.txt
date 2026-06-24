@@ -1,0 +1,7 @@
+holoviews==1.18.1
+hvplot==0.8.2
+numpy==1.26.3
+pandas==2.2.3
+param==2.2.0
+panel==1.6.0
+scipy==1.16.3
