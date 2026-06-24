@@ -343,12 +343,12 @@ class ExperimentData(param.Parameterized):
                 problems_by_domain[domain] = [x for x in data.loc[(attributes[0],domain)].index.get_level_values('problem')]
                 num_problems  += len(problems_by_domain[domain])
 
-            success, new_data = self.compute_ipc_score(data)
-            if success:
-                new_attributes = ["ipc-sat-score", "ipc-sat-score-no-planning-domains"]
-                attributes = sorted(attributes + new_attributes)
-                sorted_num_attr_names = sorted(sorted_num_attr_names + new_attributes)
-                data = new_data.sort_values("attribute")
+#            success, new_data = self.compute_ipc_score(data)
+#            if success:
+#                new_attributes = ["ipc-sat-score", "ipc-sat-score-no-planning-domains"]
+#                attributes = sorted(attributes + new_attributes)
+#                sorted_num_attr_names = sorted(sorted_num_attr_names + new_attributes)
+#                data = new_data.sort_values("attribute")
             # numeric attributes should only be set up once ipc scores have been computed
             numeric_attributes = dict()
             for i,x in enumerate(sorted_num_attr_names):
