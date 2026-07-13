@@ -414,8 +414,15 @@ class ExperimentData(param.Parameterized):
             if with_upper:
                 tmp_data["upper_bounds"] = upper_bounds
             min_costs = tmp_data.min(axis=1)
-
-            score_data = (1/costs).fillna(0).multiply(min_costs, axis=0)
+            
+            # We need to handle the case where the costs are 0. The normal
+            # computation does not work in this case, because we would divide
+            # by 0. If the task has been solved optimally, it should get
+            # a score of 1. For this reason, we first consider all 0s in
+            # costs as NaN and at the end replace the score_data for these
+            # entries with 1 (mask). For all costs entries that are NaN from the
+            # beginning, the score_data will be 0.
+            score_data = (1/costs.where(costs != 0)).fillna(0).multiply(min_costs, axis=0).mask(costs == 0, 1)
             score_data["attribute"] = "ipc-sat-score" if with_upper else "ipc-sat-score-no-planning-domains"
             score_data.set_index(["attribute", score_data.index], inplace=True)
             new_data = pd.concat([new_data, score_data])
