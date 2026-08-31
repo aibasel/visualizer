@@ -31,6 +31,7 @@ class ScatterReport(Report):
     x_scale = param.Selector(label="X Axis Scale", objects=["log", "linear"], default="log")
     y_scale = param.Selector(label="Y Axis Scale", objects=["log", "linear"], default="log")
     relative = param.Boolean(label="Y Axis relative to X Axis", default=False)
+    show_mean = param.Boolean(label="Show mean values", default=False, doc="Add lines at the mean values of x and y")
     group_by = param.Selector(label="Group By", objects=["name", "domain"], default="name")
     replace_zero = param.Number(label="Replace 0 with", default=0, doc="Replace all 0 values with the given values (useful for log plots).")
     marker_size = param.Integer(label="Marker Size", default = 7, bounds = (2,50))
@@ -131,6 +132,16 @@ class ScatterReport(Report):
                     value="If true, the values on the y axis are replaced by y/x."
                 )
             ),
+            pn.Row(
+                pn.widgets.Checkbox.from_param(
+                    self.param.show_mean,
+                    margin=(5, -10, 5, 0),
+                ),
+                pn.widgets.TooltipIcon(
+                    value="If true, add lines for the mean value of x and y. The mean is only over finite values. " \
+                          "In a relative plot the mean y value is the mean factor relative to x."
+                )
+            ),
             pn.pane.HTML("<label>Group By</label>", margin=(5, 0, -5, 0)),
             pn.widgets.RadioButtonGroup.from_param(
                 self.param.group_by,
@@ -224,7 +235,7 @@ class ScatterReport(Report):
         logger.debug("end updating data")
 
 
-    @param.depends("df", "x_scale", "y_scale", "relative", "marker_size", "marker_fill_alpha", "markers", "colors", "legend_width", watch=True)
+    @param.depends("df", "x_scale", "y_scale", "relative", "show_mean", "marker_size", "marker_fill_alpha", "markers", "colors", "legend_width", watch=True)
     def update_data_view(self):
         logger.debug("start updating data view")
         plot = figure(
@@ -316,6 +327,22 @@ class ScatterReport(Report):
             p.data_source.selected.on_change('indices', partial(self.on_click_callback, df=p_df, source=p.data_source))
             legend_items.append(LegendItem(label=index, renderers = [plot.renderers[i]]))
 
+
+        if self.show_mean:
+            for i, index in enumerate(indices):
+                p_df = df_copy.loc[[index]].reset_index()
+                color = 'blue' if len(indices) == 1 else self.colors[i%len(self.colors)]
+
+                x_df = p_df[p_df[x] != x_failed_val]
+                if len(x_df[x]):
+                    mean = x_df[x].mean()
+                    plot.line(x=[mean,mean], y=[df_copy[y].min()*0.9, y_failed_val], color=color)
+
+                y_df = p_df[p_df[y] != y_failed_val]
+                if len(y_df[y]):
+                    mean = y_df[y].mean()
+                    plot.line(x=[df_copy[x].min()*0.9, x_failed_val], y=[mean,mean], color=color)
+
         # helper lines
         plot.renderers.extend([Span(location=x_failed_val, dimension='height', line_color='red')])
         plot.renderers.extend([Span(location=y_failed_val, dimension='width', line_color='red')])
@@ -399,6 +426,8 @@ class ScatterReport(Report):
             d["ysc"] = self.y_scale
         if self.relative != self.param.relative.default:
             d["rel"] = self.relative
+        if self.show_mean != self.param.show_mean.default:
+            d["mean"] = self.show_mean
         if self.group_by != self.param.group_by.default:
             d["grp"] = self.group_by
         if self.replace_zero != self.param.replace_zero.default:
@@ -430,6 +459,8 @@ class ScatterReport(Report):
             update["y_scale"] = d["ysc"]
         if "rel" in d:
             update["relative"] = d["rel"]
+        if "mean" in d:
+            update["show_mean"] = d["mean"]
         if "grp" in d:
             update["group_by"] = d["grp"]
         if "rep0" in d:
