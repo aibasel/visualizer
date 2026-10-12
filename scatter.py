@@ -334,12 +334,12 @@ class ScatterReport(Report):
                 color = 'blue' if len(indices) == 1 else self.colors[i%len(self.colors)]
 
                 x_df = p_df[p_df[x] != x_failed_val]
-                if len(x_df[x]):
+                if not x_df[x].empty:
                     mean = x_df[x].mean()
                     plot.line(x=[mean,mean], y=[df_copy[y].min()*0.9, y_failed_val], color=color)
 
                 y_df = p_df[p_df[y] != y_failed_val]
-                if len(y_df[y]):
+                if not y_df[y].empty:
                     mean = y_df[y].mean()
                     plot.line(x=[df_copy[x].min()*0.9, x_failed_val], y=[mean,mean], color=color)
 
@@ -408,7 +408,8 @@ class ScatterReport(Report):
             "marker_fill_alpha",
             "markers",
             "colors",
-            "legend_width"
+            "legend_width",
+            "show_mean",
         ]
 
 
